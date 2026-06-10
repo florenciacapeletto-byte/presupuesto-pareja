@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DuetBudget - Presupuesto en Pareja</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Chart.js CDN for interactive visualizations -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Supabase CDN for cloud database synchronization -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="logo-container">
+                <div class="logo-icon">⇄</div>
+                <div class="logo-text">DuetBudget</div>
+            </div>
+            
+            <nav>
+                <ul class="nav-links">
+                    <li class="nav-item active" data-tab="dashboard">
+                        <button type="button">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z" />
+                            </svg>
+                            <span>Dashboard</span>
+                        </button>
+                    </li>
+                    <li class="nav-item" data-tab="income">
+                        <button type="button">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span>Ingresos</span>
+                        </button>
+                    </li>
+                    <li class="nav-item" data-tab="expenses-fixed">
+                        <button type="button">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                            </svg>
+                            <span>Egresos Fijos</span>
+                        </button>
+                    </li>
+                    <li class="nav-item" data-tab="expenses-var">
+                        <button type="button">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                            </svg>
+                            <span>Egresos Variables</span>
+                        </button>
+                    </li>
+                    <li class="nav-item" data-tab="savings">
+                        <button type="button">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2a3 3 0 003 3h4a3 3 0 003-3v-2M9 11v6H3v-6h6M9 5v6H3V5h6m6-2h6v6h-6V3zm0 8h6v6h-6v-6z" />
+                            </svg>
+                            <span>Ahorros</span>
+                        </button>
+                    </li>
+                    <li class="nav-item" data-tab="investments">
+                        <button type="button">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                            </svg>
+                            <span>Inversiones</span>
+                        </button>
+                    </li>
+                    <li class="nav-item" data-tab="settings">
+                        <button type="button">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            <span>Configuración</span>
+                        </button>
+                    </li>
+                </ul>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <div class="partner-profile-summary">
+                    <div class="partner-avatars">
+                        <span class="avatar cris" id="summary-avatar-1">C</span>
+                        <span class="avatar flor" id="summary-avatar-2">F</span>
+                    </div>
+                    <div class="partner-names-summary">
+                        <span>Hogar de</span>
+                        <strong id="summary-names">Cris & Flor</strong>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Top Action Bar -->
+            <header class="top-bar">
+                <div class="page-title">
+                    <h1 id="page-display-title">Dashboard</h1>
+                    <p id="page-display-desc">Resumen financiero de tu hogar.</p>
+                </div>
+                
+                <div class="action-controls">
+                    <div class="select-month-wrapper">
+                        <select id="month-selector" class="select-month">
+                            <!-- Populated dynamically -->
+                        </select>
+                    </div>
+                    <button class="btn btn-secondary" id="btn-export-pdf" title="Exportar reporte PDF">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                        </svg>
+                        Reporte
+                    </button>
+                </div>
+            </header>
+
+            <!-- TABS CONTAINER -->
+            <div class="tabs-container">
+                
+                <!-- TAB: DASHBOARD -->
+                <section id="tab-dashboard" class="tab-content active">
+                    <!-- Settlement / Debt Calculator Alert -->
+                    <div class="settlement-card">
+                        <div class="settlement-info">
+                            <div class="settlement-icon">🤝</div>
+                            <div class="settlement-text">
+                                <h4 id="settlement-title">Cuentas Claras</h4>
+                                <p id="settlement-details">Calculando distribución del mes...</p>
+                            </div>
+                        </div>
+                        <div class="settlement-amount" id="settlement-value">$0.00</div>
+                    </div>
+
+                    <!-- Summary Cards Grid -->
+                    <div class="summary-grid">
+                        <div class="glass-card summary-card income">
+                            <div class="card-header-small">
+                                <span>Ingresos Totales</span>
+                                <span>💵</span>
+                            </div>
+                            <div class="card-value" id="card-total-income">$0.00</div>
+                            <div class="card-desc" id="card-income-split">C: $0 | F: $0</div>
+                        </div>
+                        
+                        <div class="glass-card summary-card expenses">
+                            <div class="card-header-small">
+                                <span>Egresos Totales</span>
+                                <span>💸</span>
+                            </div>
+                            <div class="card-value" id="card-total-expenses">$0.00</div>
+                            <div class="card-desc" id="card-expenses-split">Fijos: $0 | Var: $0</div>
+                        </div>
+                        
+                        <div class="glass-card summary-card savings">
+                            <div class="card-header-small">
+                                <span>Ahorros Totales</span>
+                                <span>🎯</span>
+                            </div>
+                            <div class="card-value" id="card-total-savings">$0.00</div>
+                            <div class="card-desc" id="card-savings-rate">Meta: $0.00</div>
+                        </div>
+                        
+                        <div class="glass-card summary-card investments">
+                            <div class="card-header-small">
+                                <span>Inversiones Totales</span>
+                                <span>📈</span>
+                            </div>
+                            <div class="card-value" id="card-total-investments">$0.00</div>
+                            <div class="card-desc" id="card-investments-rate">Meta: $0.00</div>
+                        </div>
+                        
+                        <div class="glass-card summary-card balance">
+                            <div class="card-header-small">
+                                <span>Balance Disponible</span>
+                                <span>🏦</span>
+                            </div>
+                            <div class="card-value" id="card-total-balance">$0.00</div>
+                            <div class="card-desc" id="card-balance-rate">Resto disponible post ahorros</div>
+                        </div>
+                    </div>
+
+                    <!-- Charts Grid -->
+                    <div class="charts-grid">
+                        <div class="glass-card chart-card">
+                            <h3>Distribución de Gastos por Categoría</h3>
+                            <div class="chart-wrapper">
+                                <canvas id="chart-expenses-categories"></canvas>
+                            </div>
+                        </div>
+                        
+                        <div class="glass-card chart-card">
+                            <h3>Aportes vs Gastos Individuales</h3>
+                            <div class="chart-wrapper">
+                                <canvas id="chart-partner-comparison"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Distribution Insight -->
+                    <div class="alert-banner alert-banner-info">
+                        <span style="font-size:1.25rem;">💡</span>
+                        <div>
+                            <strong>Análisis de Presupuesto:</strong> El método de división actual es <strong id="desc-division-method">Proporcional</strong>. 
+                            Cris aporta el <span id="desc-pct-1">0%</span> de los ingresos y Flor el <span id="desc-pct-2">0%</span>.
+                            Los gastos comunes se dividen en esa misma proporción.
+                        </div>
+                    </div>
+                </section>
+
+                <!-- TAB: INCOME -->
+                <section id="tab-income" class="tab-content">
+                    <div class="glass-card table-card">
+                        <div class="table-header">
+                            <h3>Registrar Ingresos del Mes</h3>
+                        </div>
+                        
+                        <form id="form-income" class="form-inline-row">
+                            <div class="form-group">
+                                <input type="text" id="income-desc" placeholder="Ej. Sueldo, Freelance, Rendimientos" required>
+                            </div>
+                            <div class="form-group small">
+                                <select id="income-owner" required>
+                                    <option value="member1">Cris</option>
+                                    <option value="member2">Flor</option>
+                                    <option value="shared">Común (Pasivos/Ventas)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <div class="input-icon-wrapper">
+                                    <span>$</span>
+                                    <input type="number" id="income-amount" placeholder="Monto" min="0" step="any" required>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Añadir</button>
+                        </form>
+
+                        <div class="table-responsive">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Descripción</th>
+                                        <th>Proveedor</th>
+                                        <th style="text-align: right;">Monto</th>
+                                        <th style="width: 100px; text-align: center;">Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="table-income-body">
+                                    <!-- Rendered dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- TAB: FIXED EXPENSES -->
+                <section id="tab-expenses-fixed" class="tab-content">
+                    <div class="glass-card table-card">
+                        <div class="table-header">
+                            <h3>Egresos Fijos (Servicios, Vivienda, Contratos)</h3>
+                        </div>
+                        
+                        <form id="form-expenses-fixed" class="form-inline-row">
+                            <div class="form-group">
+                                <input type="text" id="fixed-desc" placeholder="Ej. Alquiler, Internet, Expensas, Electricidad" required>
+                            </div>
+                            <div class="form-group small">
+                                <select id="fixed-payer" required>
+                                    <option value="member1">Pagó Cris</option>
+                                    <option value="member2">Pagó Flor</option>
+                                </select>
+                            </div>
+                            <div class="form-group small">
+                                <select id="fixed-split" required>
+                                    <option value="shared">Dividido (Común)</option>
+                                    <option value="member1">Solo Cris</option>
+                                    <option value="member2">Solo Flor</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <div class="input-icon-wrapper">
+                                    <span>$</span>
+                                    <input type="number" id="fixed-amount" placeholder="Monto" min="0" step="any" required>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Añadir</button>
+                        </form>
+
+                        <div class="table-responsive">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Descripción</th>
+                                        <th>Pagado por</th>
+                                        <th>Destinado a</th>
+                                        <th style="text-align: right;">Monto</th>
+                                        <th style="width: 100px; text-align: center;">Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="table-fixed-body">
+                                    <!-- Rendered dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- TAB: VARIABLE EXPENSES -->
+                <section id="tab-expenses-var" class="tab-content">
+                    <div class="glass-card table-card">
+                        <div class="table-header">
+                            <h3>Egresos Variables (Supermercado, Salidas, Transporte, Caprichos)</h3>
+                        </div>
+                        
+                        <form id="form-expenses-var" class="form-inline-row">
+                            <div class="form-group">
+                                <input type="text" id="var-desc" placeholder="Ej. Compra semanal, Restaurante, Nafta" required>
+                            </div>
+                            <div class="form-group small">
+                                <select id="var-category" required>
+                                    <option value="Alimentación">Alimentación</option>
+                                    <option value="Salidas y Ocio">Salidas/Ocio</option>
+                                    <option value="Transporte">Transporte</option>
+                                    <option value="Salud y Cuidado">Salud/Cuidado</option>
+                                    <option value="Suscripciones">Suscripciones</option>
+                                    <option value="Hogar">Hogar</option>
+                                    <option value="Otros">Otros</option>
+                                </select>
+                            </div>
+                            <div class="form-group small">
+                                <select id="var-payer" required>
+                                    <option value="member1">Pagó Cris</option>
+                                    <option value="member2">Pagó Flor</option>
+                                </select>
+                            </div>
+                            <div class="form-group small">
+                                <select id="var-split" required>
+                                    <option value="shared">Dividido (Común)</option>
+                                    <option value="member1">Solo Cris</option>
+                                    <option value="member2">Solo Flor</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <div class="input-icon-wrapper">
+                                    <span>$</span>
+                                    <input type="number" id="var-amount" placeholder="Monto" min="0" step="any" required>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Añadir</button>
+                        </form>
+
+                        <div class="table-responsive">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Descripción</th>
+                                        <th>Categoría</th>
+                                        <th>Pagado por</th>
+                                        <th>Destinado a</th>
+                                        <th style="text-align: right;">Monto</th>
+                                        <th style="width: 100px; text-align: center;">Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="table-var-body">
+                                    <!-- Rendered dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- TAB: SAVINGS -->
+                <section id="tab-savings" class="tab-content">
+                    <div class="glass-card table-card" style="margin-bottom: 1.5rem;">
+                        <div class="table-header">
+                            <h3>Metas de Ahorro</h3>
+                        </div>
+                        
+                        <form id="form-savings" class="form-inline-row">
+                            <div class="form-group">
+                                <input type="text" id="savings-desc" placeholder="Ej. Fondo de Emergencia, Vacaciones, Auto" required>
+                            </div>
+                            <div class="form-group small" style="flex: 0 0 80px; min-width: 80px;">
+                                <input type="text" id="savings-currency" placeholder="Moneda" value="€" required>
+                            </div>
+                            <div class="form-group">
+                                <div class="input-icon-wrapper">
+                                    <input type="number" id="savings-saved" placeholder="Acumulado" min="0" step="any" required style="padding-left: 0.85rem;">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <div class="input-icon-wrapper">
+                                    <input type="number" id="savings-target" placeholder="Meta Total" min="0" step="any" required style="padding-left: 0.85rem;">
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Añadir</button>
+                        </form>
+                    </div>
+
+                    <div id="savings-goals-grid">
+                        <!-- Goal Cards Rendered dynamically -->
+                    </div>
+                </section>
+
+                <!-- TAB: INVESTMENTS -->
+                <section id="tab-investments" class="tab-content">
+                    <div class="glass-card table-card" style="margin-bottom: 1.5rem;">
+                        <div class="table-header">
+                            <h3>Portafolio de Inversiones</h3>
+                        </div>
+                        
+                        <form id="form-investments" class="form-inline-row">
+                            <div class="form-group">
+                                <input type="text" id="investments-desc" placeholder="Ej. Criptomonedas, CEDEARs, Bolsa, Plazo Fijo" required>
+                            </div>
+                            <div class="form-group small" style="flex: 0 0 80px; min-width: 80px;">
+                                <input type="text" id="investments-currency" placeholder="Moneda" value="€" required>
+                            </div>
+                            <div class="form-group">
+                                <div class="input-icon-wrapper">
+                                    <input type="number" id="investments-saved" placeholder="Acumulado" min="0" step="any" required style="padding-left: 0.85rem;">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <div class="input-icon-wrapper">
+                                    <input type="number" id="investments-target" placeholder="Meta Total" min="0" step="any" required style="padding-left: 0.85rem;">
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Añadir</button>
+                        </form>
+                    </div>
+
+                    <div id="investments-goals-grid">
+                        <!-- Investment Cards Rendered dynamically -->
+                    </div>
+                </section>
+
+                <!-- TAB: CONFIGURATION -->
+                <section id="tab-settings" class="tab-content">
+                    <div class="glass-card">
+                        <div class="config-grid">
+                            
+                            <!-- Left: Couple Settings -->
+                            <div class="config-section">
+                                <h3>Configuración de Pareja</h3>
+                                <form id="form-couple-settings">
+                                    <div class="config-form-group">
+                                        <label for="config-name-1">Nombre Integrante 1</label>
+                                        <input type="text" id="config-name-1" value="Cris" required>
+                                    </div>
+                                    <div class="config-form-group">
+                                        <label for="config-name-2">Nombre Integrante 2</label>
+                                        <input type="text" id="config-name-2" value="Flor" required>
+                                    </div>
+                                    <div class="config-form-group">
+                                        <label for="config-currency">Símbolo de Moneda</label>
+                                        <input type="text" id="config-currency" value="$" required style="max-width: 100px;">
+                                    </div>
+                                    <div class="config-form-group">
+                                        <label for="config-split-mode">Método de División de Gastos Comunes</label>
+                                        <select id="config-split-mode">
+                                            <option value="proportional">Equitativo / Proporcional al Ingreso (Recomendado)</option>
+                                            <option value="equal">Igualitario / Mitad y Mitad (50 / 50)</option>
+                                            <option value="unified">Caja Única / Todo Compartido (Sin división ni deudas)</option>
+                                        </select>
+                                    </div>
+                                    <div class="proportion-display" id="config-proportion-preview">
+                                        Proporción calculada: Cargando ingresos...
+                                    </div>
+                                    <button type="submit" class="btn btn-primary" style="margin-top: 1rem; width: 100%;">Guardar Cambios</button>
+                                </form>
+                            </div>
+
+                            <!-- Middle: Supabase Cloud Sync -->
+                            <div class="config-section">
+                                <h3>Sincronización en la Nube (Supabase)</h3>
+                                <p style="color:var(--text-secondary); font-size:0.85rem; margin-bottom:1rem; line-height:1.4;">
+                                    Conecta la aplicación a Supabase para sincronizar tus datos con tu pareja en tiempo real.
+                                </p>
+                                
+                                <div class="sync-status-wrapper" style="margin-bottom: 1.25rem; display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; font-weight: 600;">
+                                    <span>Estado:</span>
+                                    <span class="sync-badge status-local" id="supabase-status-badge">Modo Local (Sin nube)</span>
+                                </div>
+
+                                <form id="form-supabase-settings">
+                                    <div class="config-form-group">
+                                        <label for="config-supabase-url">URL de Supabase</label>
+                                        <input type="url" id="config-supabase-url" placeholder="https://tu-proyecto.supabase.co" required>
+                                    </div>
+                                    <div class="config-form-group">
+                                        <label for="config-supabase-key">Clave Pública (Anon Key)</label>
+                                        <input type="password" id="config-supabase-key" placeholder="Tu clave anon..." required>
+                                    </div>
+                                    <div style="display:flex; gap:0.5rem; margin-top:1rem;">
+                                        <button type="submit" class="btn btn-primary" id="btn-supabase-connect" style="flex:1;">Conectar y Sincronizar</button>
+                                        <button type="button" class="btn btn-danger" id="btn-supabase-disconnect" style="display:none; flex:1;">Desconectar</button>
+                                    </div>
+                                </form>
+
+                                <div class="supabase-instructions-box" style="margin-top: 1.5rem; border-top: 1px solid var(--border-card); padding-top: 1rem;">
+                                    <h4 style="font-size: 0.85rem; margin-bottom: 0.5rem; color: var(--text-primary);">Configuración requerida en Supabase:</h4>
+                                    <p style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.5rem; line-height: 1.3;">
+                                        Crea una tabla en tu SQL Editor ejecutando el siguiente comando:
+                                    </p>
+                                    <div style="position: relative;">
+                                        <pre style="background: rgba(0,0,0,0.3); padding: 0.75rem; border-radius: 6px; font-family: monospace; font-size: 0.7rem; color: #34d399; overflow-x: auto; max-height: 120px;"><code id="sql-instructions-code">CREATE TABLE IF NOT EXISTS public.duet_budget (
+  id text PRIMARY KEY,
+  data jsonb NOT NULL,
+  updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+ALTER TABLE public.duet_budget REPLICA IDENTITY FULL;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.duet_budget;</code></pre>
+                                        <button type="button" class="btn btn-mini" style="position: absolute; right: 5px; top: 5px; font-size: 0.65rem; padding: 2px 6px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #fff; cursor: pointer; border-radius: 4px;" onclick="copySQLSnippet()">Copiar</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Right: Database & Data Management -->
+                            <div class="config-section">
+                                <h3>Administración de Datos</h3>
+                                <p style="color:var(--text-secondary); font-size:0.85rem; margin-bottom:1.5rem; line-height:1.4;">
+                                    Toda la información se almacena localmente en el navegador de este dispositivo. 
+                                    Para compartir estos datos con tu pareja, exporta el presupuesto e impórtalo en su dispositivo.
+                                </p>
+                                
+                                <div style="display:flex; flex-direction:column; gap:1rem;">
+                                    <div>
+                                        <button class="btn btn-secondary" id="btn-export-data" style="width:100%;">
+                                            📥 Exportar Presupuesto (JSON)
+                                        </button>
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="btn btn-secondary" style="width:100%; display:inline-flex; justify-content:center; cursor:pointer;">
+                                            📤 Importar Presupuesto (JSON)
+                                            <input type="file" id="btn-import-data" accept=".json" style="display:none;">
+                                        </label>
+                                    </div>
+                                    
+                                    <div style="margin-top:1rem; padding-top:1.5rem; border-top:1px solid var(--border-card);">
+                                        <button class="btn btn-danger" id="btn-reset-data" style="width:100%;">
+                                            ⚠ Restablecer / Borrar Todo
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- EDIT MODAL -->
+    <div id="edit-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Editar Meta / Inversión</h3>
+                <button type="button" class="modal-close" onclick="closeEditGoalModal()">&times;</button>
+            </div>
+            <form id="form-edit-goal">
+                <input type="hidden" id="edit-goal-id">
+                
+                <div class="config-form-group">
+                    <label for="edit-goal-desc">Nombre de la Meta</label>
+                    <input type="text" id="edit-goal-desc" required>
+                </div>
+                
+                <div class="config-form-group">
+                    <label for="edit-goal-category">Categoría</label>
+                    <select id="edit-goal-category" required>
+                        <option value="Ahorro">Ahorro</option>
+                        <option value="Inversión">Inversión</option>
+                    </select>
+                </div>
+                
+                <div style="display: flex; gap: 1rem;">
+                    <div class="config-form-group" style="flex: 1;">
+                        <label for="edit-goal-currency">Divisa / Símbolo</label>
+                        <input type="text" id="edit-goal-currency" placeholder="ej. € o USD" required>
+                    </div>
+                    
+                    <div class="config-form-group" style="flex: 2;">
+                        <label for="edit-goal-saved">Acumulado actual</label>
+                        <input type="number" id="edit-goal-saved" min="0" step="any" required>
+                    </div>
+                </div>
+                
+                <div class="config-form-group">
+                    <label for="edit-goal-target">Meta Total</label>
+                    <input type="number" id="edit-goal-target" min="0" step="any" required>
+                </div>
+                
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeEditGoalModal()">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- CONFLICT RESOLUTION MODAL -->
+    <div id="conflict-modal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3>⚖️ Conflicto de Datos en la Nube</h3>
+            </div>
+            <div style="margin: 1.25rem 0; font-size: 0.85rem; line-height: 1.5; color: var(--text-secondary);">
+                <p>Se ha detectado un presupuesto guardado en la nube que difiere de tus datos locales.</p>
+                <p style="margin-top: 0.5rem; font-weight: 700; color: var(--text-primary);">¿Cómo deseas resolver este conflicto para sincronizar?</p>
+                
+                <div style="margin-top: 1rem; padding: 0.85rem; background: rgba(6, 182, 212, 0.05); border: 1px solid rgba(6, 182, 212, 0.15); border-radius: 6px;">
+                    <strong style="color: #22d3ee; display: block; font-size: 0.85rem;">Opción A: Descargar datos de la nube</strong>
+                    <span style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-top: 0.25rem;">Reemplaza tu presupuesto local con el de la nube. Elige esto si tu pareja ya cargó los datos actualizados.</span>
+                </div>
+                
+                <div style="margin-top: 0.75rem; padding: 0.85rem; background: rgba(139, 92, 246, 0.05); border: 1px solid rgba(139, 92, 246, 0.15); border-radius: 6px;">
+                    <strong style="color: #a78bfa; display: block; font-size: 0.85rem;">Opción B: Subir datos locales a la nube</strong>
+                    <span style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-top: 0.25rem;">Sobrescribirá la nube con tus datos locales. Elige esto si estás haciendo la primera configuración.</span>
+                </div>
+            </div>
+            <div class="modal-footer" style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+                <button type="button" class="btn btn-secondary" id="btn-conflict-download" style="background: var(--color-secondary); color: #0f172a; font-weight:700;">Descargar de la Nube</button>
+                <button type="button" class="btn btn-primary" id="btn-conflict-upload">Subir a la Nube</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="toast-container" style="position: fixed; bottom: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 0.5rem; pointer-events: none;"></div>
+
+    <script>
+        function copySQLSnippet() {
+            const codeText = document.getElementById("sql-instructions-code").textContent;
+            navigator.clipboard.writeText(codeText).then(() => {
+                alert("¡Código SQL copiado al portapapeles! Pégalo en el SQL Editor de tu consola de Supabase.");
+            }).catch(err => {
+                console.error("Error al copiar código SQL: ", err);
+            });
+        }
+    </script>
+
+    <!-- Script loading -->
+    <script src="app.js"></script>
+</body>
+</html>
