@@ -1187,4 +1187,103 @@ tr:last-child td {
     border-radius: 2px;
 }
 
+/* ==========================================
+   DASHBOARD CURRENCY BREAKDOWN
+   ========================================== */
+
+/* List container of multiple currencies/assets */
+.premium-breakdown-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-height: 180px;
+    overflow-y: auto;
+    padding-right: 0.35rem;
+    margin-top: 0.5rem;
+}
+
+/* Custom scrollbar for premium breakdown */
+.premium-breakdown-list::-webkit-scrollbar {
+    width: 4px;
+}
+.premium-breakdown-list::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 2px;
+}
+.premium-breakdown-list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 2px;
+}
+.premium-breakdown-list::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.25);
+}
+
+/* Individual currency row card */
+.breakdown-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.5rem 0.65rem;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    border-radius: 8px;
+    transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.breakdown-item:hover {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+.breakdown-row-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.breakdown-asset-badge {
+    font-size: 0.65rem;
+    font-weight: 800;
+    padding: 0.15rem 0.45rem;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 4px;
+    color: var(--text-secondary);
+    letter-spacing: 0.5px;
+}
+
+.breakdown-saved-val {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.breakdown-row-bottom {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.breakdown-progress-container {
+    flex: 1;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.breakdown-progress-bar {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.4s ease;
+}
+
+.breakdown-target-val {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+
 

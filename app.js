@@ -589,41 +589,15 @@ function calculateBudgetMetrics() {
     document.getElementById("card-total-expenses").textContent = formatVal(totalExpenses);
     document.getElementById("card-expenses-split").textContent = `Fijos: ${formatVal(totalFixed)} | Variables: ${formatVal(totalVar)}`;
     
-    // Render savings card value and subtext with multi-currency breakdown
-    const savingsCurrs = Object.keys(savingsByCurrency);
-    if (savingsCurrs.length === 0) {
-        document.getElementById("card-total-savings").innerHTML = formatCurrencyCustom(0, state.config.currency);
-        document.getElementById("card-savings-rate").innerHTML = `Meta: ${formatCurrencyCustom(0, state.config.currency)}`;
-    } else {
-        let valueHTML = '<div class="card-value-list">';
-        let rateHTML = "Meta: ";
-        savingsCurrs.forEach((curr, idx) => {
-            const t = savingsByCurrency[curr];
-            valueHTML += `<span>${formatCurrencyCustom(t.saved, curr)}</span>`;
-            rateHTML += `${idx > 0 ? " | " : ""}${formatCurrencyCustom(t.target, curr)}`;
-        });
-        valueHTML += '</div>';
-        document.getElementById("card-total-savings").innerHTML = valueHTML;
-        document.getElementById("card-savings-rate").innerHTML = rateHTML;
-    }
+    // Render savings card value and subtext with premium breakdown
+    const savingsCount = savingsList.filter(s => s.category === "Ahorro").length;
+    document.getElementById("card-total-savings").innerHTML = renderCurrencyBreakdown(savingsByCurrency, false);
+    document.getElementById("card-savings-rate").innerHTML = `${savingsCount} objetivo${savingsCount !== 1 ? 's' : ''} de ahorro`;
     
-    // Render investments card value and subtext with multi-currency breakdown
-    const investmentsCurrs = Object.keys(investmentsByCurrency);
-    if (investmentsCurrs.length === 0) {
-        document.getElementById("card-total-investments").innerHTML = formatCurrencyCustom(0, state.config.currency);
-        document.getElementById("card-investments-rate").innerHTML = `Meta: ${formatCurrencyCustom(0, state.config.currency)}`;
-    } else {
-        let valueHTML = '<div class="card-value-list">';
-        let rateHTML = "Meta: ";
-        investmentsCurrs.forEach((curr, idx) => {
-            const t = investmentsByCurrency[curr];
-            valueHTML += `<span>${formatCurrencyCustom(t.saved, curr)}</span>`;
-            rateHTML += `${idx > 0 ? " | " : ""}${formatCurrencyCustom(t.target, curr)}`;
-        });
-        valueHTML += '</div>';
-        document.getElementById("card-total-investments").innerHTML = valueHTML;
-        document.getElementById("card-investments-rate").innerHTML = rateHTML;
-    }
+    // Render investments card value and subtext with premium breakdown
+    const investmentsCount = savingsList.filter(s => s.category === "Inversión").length;
+    document.getElementById("card-total-investments").innerHTML = renderCurrencyBreakdown(investmentsByCurrency, true);
+    document.getElementById("card-investments-rate").innerHTML = `${investmentsCount} activo${investmentsCount !== 1 ? 's' : ''} en cartera`;
     
     document.getElementById("card-total-balance").textContent = formatVal(netBalance);
     document.getElementById("card-balance-rate").textContent = `${totalIncome > 0 ? Math.round((netBalance / totalIncome) * 100) : 0}% de los ingresos libres`;
@@ -1383,4 +1357,45 @@ function closeConflictModal() {
     document.getElementById("conflict-modal").classList.remove("active");
     pendingRemoteState = null;
 }
+
+// Helper to render premium currency breakdown list inside Dashboard cards
+function renderCurrencyBreakdown(groupData, isInvestment = false) {
+    const currencies = Object.keys(groupData);
+    if (currencies.length === 0) {
+        return `
+            <div style="font-size: 1.65rem; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 0.25rem;">
+                0,00 ${state.config.currency}
+            </div>
+        `;
+    }
+    
+    let html = '<div class="premium-breakdown-list">';
+    currencies.forEach(curr => {
+        const item = groupData[curr];
+        const percent = item.target > 0 ? Math.min(Math.round((item.saved / item.target) * 100), 100) : 0;
+        const displaySaved = formatCurrencyCustom(item.saved, curr);
+        const displayTarget = formatCurrencyCustom(item.target, curr);
+        
+        // Use secondary color for investments, primary for savings
+        const barColor = isInvestment ? 'var(--color-secondary)' : 'var(--color-primary)';
+        
+        html += `
+            <div class="breakdown-item">
+                <div class="breakdown-row-top">
+                    <span class="breakdown-asset-badge">${curr.toUpperCase()}</span>
+                    <span class="breakdown-saved-val">${displaySaved}</span>
+                </div>
+                <div class="breakdown-row-bottom">
+                    <div class="breakdown-progress-container">
+                        <div class="breakdown-progress-bar" style="width: ${percent}%; background: ${barColor};"></div>
+                    </div>
+                    <span class="breakdown-target-val">Meta: ${displayTarget} (${percent}%)</span>
+                </div>
+            </div>
+        `;
+    });
+    html += '</div>';
+    return html;
+}
+
 
