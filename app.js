@@ -105,10 +105,10 @@ function saveState() {
     }
 }
 
-// Ensure the current month exists in the database
-function ensureCurrentMonthExists() {
-    if (!state.months[state.currentMonth]) {
-        state.months[state.currentMonth] = {
+// Ensure the specified month exists in the database
+function ensureMonthExists(monthKey) {
+    if (!state.months[monthKey]) {
+        state.months[monthKey] = {
             income: [],
             fixedExpenses: [],
             varExpenses: [],
@@ -116,17 +116,23 @@ function ensureCurrentMonthExists() {
         };
         // Clone savings goals from previous month if available, so they don't have to re-enter targets
         const monthsList = Object.keys(state.months).sort();
-        const currentIndex = monthsList.indexOf(state.currentMonth);
+        const currentIndex = monthsList.indexOf(monthKey);
         if (currentIndex > 0) {
             const prevMonthKey = monthsList[currentIndex - 1];
             const prevMonthData = state.months[prevMonthKey];
             if (prevMonthData && prevMonthData.savings) {
                 // Copy goals
-                state.months[state.currentMonth].savings = JSON.parse(JSON.stringify(prevMonthData.savings));
+                state.months[monthKey].savings = JSON.parse(JSON.stringify(prevMonthData.savings));
             }
         }
+        initializeMonthSelector();
         saveState();
     }
+}
+
+// Ensure the current month exists in the database
+function ensureCurrentMonthExists() {
+    ensureMonthExists(state.currentMonth);
 }
 
 // Populate months dropdown (relative to current and seeded months)
@@ -223,6 +229,7 @@ function switchTab(tabId) {
 // --- RENDER FUNCTIONS ---
 function renderApp() {
     ensureCurrentMonthExists();
+    setDefaultDates();
     
     // Update config displays
     updateConfigUI();
@@ -254,6 +261,39 @@ function formatCurrencyCustom(amount, symbol) {
     } else {
         return `${formattedAmount} ${sym}`;
     }
+}
+
+// Helper to format date display in tables (YYYY-MM-DD to DD/MM/YYYY)
+function formatDateDisplay(dateStr) {
+    if (!dateStr) return "-";
+    try {
+        const [year, month, day] = dateStr.split("-");
+        if (!year || !month || !day) return dateStr;
+        return `${day}/${month}/${year}`;
+    } catch (e) {
+        return dateStr;
+    }
+}
+
+// Set default dates for the forms based on active month
+function setDefaultDates() {
+    const now = new Date();
+    const actualMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    
+    let defaultDateVal = "";
+    if (state.currentMonth === actualMonthKey) {
+        defaultDateVal = now.toISOString().substring(0, 10);
+    } else {
+        defaultDateVal = `${state.currentMonth}-01`;
+    }
+    
+    const incomeDateInput = document.getElementById("income-date");
+    const fixedDateInput = document.getElementById("fixed-date");
+    const varDateInput = document.getElementById("var-date");
+    
+    if (incomeDateInput) incomeDateInput.value = defaultDateVal;
+    if (fixedDateInput) fixedDateInput.value = defaultDateVal;
+    if (varDateInput) varDateInput.value = defaultDateVal;
 }
 
 // Update settings UI values from state
@@ -313,7 +353,7 @@ function renderIncome(incomeList) {
     tbody.innerHTML = "";
     
     if (incomeList.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No hay ingresos registrados para este mes.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No hay ingresos registrados para este mes.</td></tr>`;
         return;
     }
     
@@ -325,11 +365,17 @@ function renderIncome(incomeList) {
         else if (inc.owner === "member2") ownerLabel = `<span class="badge badge-flor">${state.config.member2}</span>`;
         else ownerLabel = `<span class="badge badge-shared">Compartido</span>`;
         
+        const displayDate = formatDateDisplay(inc.date || `${state.currentMonth}-01`);
+        
         tr.innerHTML = `
+            <td>${displayDate}</td>
             <td>${inc.desc}</td>
             <td>${ownerLabel}</td>
             <td style="text-align: right; font-weight:700;">${formatVal(inc.amount)}</td>
             <td style="text-align: center;">
+                <button class="btn btn-secondary" style="padding: 0.35rem 0.65rem; font-size: 0.75rem; margin-right: 0.25rem;" onclick="openEditItemModal('income', '${inc.id}')">
+                    Editar
+                </button>
                 <button class="btn btn-danger" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;" onclick="deleteItem('income', '${inc.id}')">
                     Borrar
                 </button>
@@ -345,7 +391,7 @@ function renderFixedExpenses(fixedList) {
     tbody.innerHTML = "";
     
     if (fixedList.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No hay egresos fijos registrados.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No hay egresos fijos registrados.</td></tr>`;
         return;
     }
     
@@ -359,12 +405,18 @@ function renderFixedExpenses(fixedList) {
         else if (exp.split === "member1") splitLabel = `<span class="badge badge-cris">Solo ${state.config.member1}</span>`;
         else splitLabel = `<span class="badge badge-flor">Solo ${state.config.member2}</span>`;
         
+        const displayDate = formatDateDisplay(exp.date || `${state.currentMonth}-01`);
+        
         tr.innerHTML = `
+            <td>${displayDate}</td>
             <td>${exp.desc}</td>
             <td>${payerLabel}</td>
             <td>${splitLabel}</td>
             <td style="text-align: right; font-weight:700; color:var(--color-danger);">${formatVal(exp.amount)}</td>
             <td style="text-align: center;">
+                <button class="btn btn-secondary" style="padding: 0.35rem 0.65rem; font-size: 0.75rem; margin-right: 0.25rem;" onclick="openEditItemModal('fixedExpenses', '${exp.id}')">
+                    Editar
+                </button>
                 <button class="btn btn-danger" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;" onclick="deleteItem('fixedExpenses', '${exp.id}')">
                     Borrar
                 </button>
@@ -380,7 +432,7 @@ function renderVarExpenses(varList) {
     tbody.innerHTML = "";
     
     if (varList.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No hay egresos variables registrados.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No hay egresos variables registrados.</td></tr>`;
         return;
     }
     
@@ -394,13 +446,19 @@ function renderVarExpenses(varList) {
         else if (exp.split === "member1") splitLabel = `<span class="badge badge-cris">Solo ${state.config.member1}</span>`;
         else splitLabel = `<span class="badge badge-flor">Solo ${state.config.member2}</span>`;
         
+        const displayDate = formatDateDisplay(exp.date || `${state.currentMonth}-01`);
+        
         tr.innerHTML = `
+            <td>${displayDate}</td>
             <td>${exp.desc}</td>
             <td><span class="badge" style="background:rgba(255,255,255,0.04); color:var(--text-secondary); border:1px solid rgba(255,255,255,0.05);">${exp.category}</span></td>
             <td>${payerLabel}</td>
             <td>${splitLabel}</td>
             <td style="text-align: right; font-weight:700; color:var(--color-danger);">${formatVal(exp.amount)}</td>
             <td style="text-align: center;">
+                <button class="btn btn-secondary" style="padding: 0.35rem 0.65rem; font-size: 0.75rem; margin-right: 0.25rem;" onclick="openEditItemModal('varExpenses', '${exp.id}')">
+                    Editar
+                </button>
                 <button class="btn btn-danger" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;" onclick="deleteItem('varExpenses', '${exp.id}')">
                     Borrar
                 </button>
@@ -903,17 +961,28 @@ function setupEventListeners() {
         const desc = document.getElementById("income-desc").value.trim();
         const owner = document.getElementById("income-owner").value;
         const amount = Number(document.getElementById("income-amount").value);
+        const dateVal = document.getElementById("income-date").value;
         
-        if (desc && amount > 0) {
-            state.months[state.currentMonth].income.push({
+        if (desc && amount > 0 && dateVal) {
+            const destMonth = dateVal.substring(0, 7); // "YYYY-MM"
+            ensureMonthExists(destMonth);
+            
+            state.months[destMonth].income.push({
                 id: 'inc-' + Date.now(),
                 desc,
                 owner,
-                amount
+                amount,
+                date: dateVal
             });
+            
+            document.getElementById("form-income").reset();
+            
+            if (destMonth !== state.currentMonth) {
+                showToast(`Ingreso registrado en ${destMonth} por la fecha elegida.`, "success");
+            }
+            
             saveState();
             renderApp();
-            document.getElementById("form-income").reset();
         }
     });
     
@@ -924,18 +993,29 @@ function setupEventListeners() {
         const payer = document.getElementById("fixed-payer").value;
         const split = document.getElementById("fixed-split").value;
         const amount = Number(document.getElementById("fixed-amount").value);
+        const dateVal = document.getElementById("fixed-date").value;
         
-        if (desc && amount > 0) {
-            state.months[state.currentMonth].fixedExpenses.push({
+        if (desc && amount > 0 && dateVal) {
+            const destMonth = dateVal.substring(0, 7); // "YYYY-MM"
+            ensureMonthExists(destMonth);
+            
+            state.months[destMonth].fixedExpenses.push({
                 id: 'fix-' + Date.now(),
                 desc,
                 payer,
                 split,
-                amount
+                amount,
+                date: dateVal
             });
+            
+            document.getElementById("form-expenses-fixed").reset();
+            
+            if (destMonth !== state.currentMonth) {
+                showToast(`Egreso fijo registrado en ${destMonth} por la fecha elegida.`, "success");
+            }
+            
             saveState();
             renderApp();
-            document.getElementById("form-expenses-fixed").reset();
         }
     });
     
@@ -947,19 +1027,30 @@ function setupEventListeners() {
         const payer = document.getElementById("var-payer").value;
         const split = document.getElementById("var-split").value;
         const amount = Number(document.getElementById("var-amount").value);
+        const dateVal = document.getElementById("var-date").value;
         
-        if (desc && amount > 0) {
-            state.months[state.currentMonth].varExpenses.push({
+        if (desc && amount > 0 && dateVal) {
+            const destMonth = dateVal.substring(0, 7); // "YYYY-MM"
+            ensureMonthExists(destMonth);
+            
+            state.months[destMonth].varExpenses.push({
                 id: 'var-' + Date.now(),
                 desc,
                 category,
                 payer,
                 split,
-                amount
+                amount,
+                date: dateVal
             });
+            
+            document.getElementById("form-expenses-var").reset();
+            
+            if (destMonth !== state.currentMonth) {
+                showToast(`Egreso variable registrado en ${destMonth} por la fecha elegida.`, "success");
+            }
+            
             saveState();
             renderApp();
-            document.getElementById("form-expenses-var").reset();
         }
     });
     
@@ -1149,6 +1240,60 @@ function setupEventListeners() {
                     }
                     closeConflictModal();
                 });
+        }
+    });
+
+    // Guardar cambios del modal de edición de ingresos/egresos
+    document.getElementById("form-edit-item").addEventListener("submit", (e) => {
+        e.preventDefault();
+        const id = document.getElementById("edit-item-id").value;
+        const type = document.getElementById("edit-item-type").value;
+        const desc = document.getElementById("edit-item-desc").value.trim();
+        const amount = Number(document.getElementById("edit-item-amount").value);
+        const dateVal = document.getElementById("edit-item-date").value;
+        
+        if (desc && amount > 0 && dateVal) {
+            const currentMonthData = state.months[state.currentMonth];
+            const list = currentMonthData ? currentMonthData[type] : [];
+            const itemIndex = list.findIndex(x => x.id === id);
+            
+            if (itemIndex !== -1) {
+                // Obtener objeto original para actualizar
+                const item = list[itemIndex];
+                item.desc = desc;
+                item.amount = amount;
+                item.date = dateVal;
+                
+                // Campos dinámicos según el tipo de registro
+                if (type === 'income') {
+                    item.owner = document.getElementById("edit-item-owner").value;
+                } else {
+                    item.payer = document.getElementById("edit-item-payer").value;
+                    item.split = document.getElementById("edit-item-split").value;
+                    if (type === 'varExpenses') {
+                        item.category = document.getElementById("edit-item-category").value;
+                    }
+                }
+                
+                // Comprobar si cambió el mes del registro
+                const destMonth = dateVal.substring(0, 7);
+                if (destMonth !== state.currentMonth) {
+                    // Remover de la lista del mes actual
+                    list.splice(itemIndex, 1);
+                    
+                    // Asegurar que el mes destino exista y añadir el registro
+                    ensureMonthExists(destMonth);
+                    state.months[destMonth][type].push(item);
+                    
+                    showToast(`Registro movido a ${destMonth} debido al cambio de fecha.`, "success");
+                } else {
+                    showToast("Registro actualizado con éxito.", "success");
+                }
+                
+                saveState();
+                renderApp();
+                closeEditItemModal();
+            }
         }
     });
 }
@@ -1397,5 +1542,122 @@ function renderCurrencyBreakdown(groupData, isInvestment = false) {
     html += '</div>';
     return html;
 }
+
+// Open and populate generic edit item modal
+window.openEditItemModal = function(type, id) {
+    const list = state.months[state.currentMonth][type] || [];
+    const item = list.find(x => x.id === id);
+    if (!item) return;
+    
+    document.getElementById("edit-item-id").value = item.id;
+    document.getElementById("edit-item-type").value = type;
+    document.getElementById("edit-item-desc").value = item.desc;
+    document.getElementById("edit-item-amount").value = item.amount;
+    
+    // Default date to active month's 1st day if it doesn't have a date
+    const itemDate = item.date || `${state.currentMonth}-01`;
+    document.getElementById("edit-item-date").value = itemDate;
+    
+    // Set title based on type
+    const titleEl = document.getElementById("edit-item-title");
+    if (type === 'income') titleEl.textContent = "Editar Ingreso";
+    else if (type === 'fixedExpenses') titleEl.textContent = "Editar Egreso Fijo";
+    else titleEl.textContent = "Editar Egreso Variable";
+    
+    // Populate dynamic fields
+    const dynamicContainer = document.getElementById("edit-item-dynamic-fields");
+    dynamicContainer.innerHTML = "";
+    
+    if (type === 'income') {
+        dynamicContainer.innerHTML = `
+            <div class="config-form-group">
+                <label for="edit-item-owner">Proveedor / Integrante</label>
+                <select id="edit-item-owner" required>
+                    <option value="member1">${state.config.member1}</option>
+                    <option value="member2">${state.config.member2}</option>
+                    <option value="shared">Común (Pasivos/Ventas)</option>
+                </select>
+            </div>
+        `;
+        document.getElementById("edit-item-owner").value = item.owner || "shared";
+    } else if (type === 'fixedExpenses') {
+        dynamicContainer.innerHTML = `
+            <div class="config-form-group">
+                <label for="edit-item-payer">Pagador</label>
+                <select id="edit-item-payer" required>
+                    <option value="member1">Pagó ${state.config.member1}</option>
+                    <option value="member2">Pagó ${state.config.member2}</option>
+                </select>
+            </div>
+            <div class="config-form-group">
+                <label for="edit-item-split">Destinado a</label>
+                <select id="edit-item-split" required>
+                    <option value="shared">Dividido (Común)</option>
+                    <option value="member1">Solo ${state.config.member1}</option>
+                    <option value="member2">Solo ${state.config.member2}</option>
+                </select>
+            </div>
+        `;
+        document.getElementById("edit-item-payer").value = item.payer || "member1";
+        document.getElementById("edit-item-split").value = item.split || "shared";
+    } else if (type === 'varExpenses') {
+        dynamicContainer.innerHTML = `
+            <div class="config-form-group">
+                <label for="edit-item-category">Categoría</label>
+                <select id="edit-item-category" required>
+                    <option value="Alimentación">Alimentación</option>
+                    <option value="Salidas y Ocio">Salidas/Ocio</option>
+                    <option value="Transporte">Transporte</option>
+                    <option value="Salud y Cuidado">Salud/Cuidado</option>
+                    <option value="Suscripciones">Suscripciones</option>
+                    <option value="Hogar">Hogar</option>
+                    <option value="Otros">Otros</option>
+                </select>
+            </div>
+            <div class="config-form-group">
+                <label for="edit-item-payer">Pagador</label>
+                <select id="edit-item-payer" required>
+                    <option value="member1">Pagó ${state.config.member1}</option>
+                    <option value="member2">Pagó ${state.config.member2}</option>
+                </select>
+            </div>
+            <div class="config-form-group">
+                <label for="edit-item-split">Destinado a</label>
+                <select id="edit-item-split" required>
+                    <option value="shared">Dividido (Común)</option>
+                    <option value="member1">Solo ${state.config.member1}</option>
+                    <option value="member2">Solo ${state.config.member2}</option>
+                </select>
+            </div>
+        `;
+        document.getElementById("edit-item-category").value = item.category || "Otros";
+        document.getElementById("edit-item-payer").value = item.payer || "member1";
+        document.getElementById("edit-item-split").value = item.split || "shared";
+    }
+    
+    // Workaround to fix dark dropdown background options in newly added select
+    const selects = dynamicContainer.querySelectorAll("select");
+    selects.forEach(sel => {
+        const currentVal = sel.value;
+        // Apply names from state
+        if (sel.id === "edit-item-owner") {
+            sel.options[0].textContent = state.config.member1;
+            sel.options[1].textContent = state.config.member2;
+        } else if (sel.id === "edit-item-payer") {
+            sel.options[0].textContent = `Pagó ${state.config.member1}`;
+            sel.options[1].textContent = `Pagó ${state.config.member2}`;
+        } else if (sel.id === "edit-item-split") {
+            sel.options[1].textContent = `Solo ${state.config.member1}`;
+            sel.options[2].textContent = `Solo ${state.config.member2}`;
+        }
+        sel.value = currentVal;
+    });
+    
+    document.getElementById("edit-item-modal").classList.add("active");
+};
+
+window.closeEditItemModal = function() {
+    document.getElementById("edit-item-modal").classList.remove("active");
+};
 
 

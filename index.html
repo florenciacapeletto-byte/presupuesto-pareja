@@ -220,6 +220,9 @@
                         </div>
                         
                         <form id="form-income" class="form-inline-row">
+                            <div class="form-group medium">
+                                <input type="date" id="income-date" required>
+                            </div>
                             <div class="form-group">
                                 <input type="text" id="income-desc" placeholder="Ej. Sueldo, Freelance, Rendimientos" required>
                             </div>
@@ -243,10 +246,11 @@
                             <table>
                                 <thead>
                                     <tr>
+                                        <th>Fecha</th>
                                         <th>Descripción</th>
                                         <th>Proveedor</th>
                                         <th style="text-align: right;">Monto</th>
-                                        <th style="width: 100px; text-align: center;">Acción</th>
+                                        <th style="width: 130px; text-align: center;">Acción</th>
                                     </tr>
                                 </thead>
                                 <tbody id="table-income-body">
@@ -265,6 +269,9 @@
                         </div>
                         
                         <form id="form-expenses-fixed" class="form-inline-row">
+                            <div class="form-group medium">
+                                <input type="date" id="fixed-date" required>
+                            </div>
                             <div class="form-group">
                                 <input type="text" id="fixed-desc" placeholder="Ej. Alquiler, Internet, Expensas, Electricidad" required>
                             </div>
@@ -294,11 +301,12 @@
                             <table>
                                 <thead>
                                     <tr>
+                                        <th>Fecha</th>
                                         <th>Descripción</th>
                                         <th>Pagado por</th>
                                         <th>Destinado a</th>
                                         <th style="text-align: right;">Monto</th>
-                                        <th style="width: 100px; text-align: center;">Acción</th>
+                                        <th style="width: 130px; text-align: center;">Acción</th>
                                     </tr>
                                 </thead>
                                 <tbody id="table-fixed-body">
@@ -317,6 +325,9 @@
                         </div>
                         
                         <form id="form-expenses-var" class="form-inline-row">
+                            <div class="form-group medium">
+                                <input type="date" id="var-date" required>
+                            </div>
                             <div class="form-group">
                                 <input type="text" id="var-desc" placeholder="Ej. Compra semanal, Restaurante, Nafta" required>
                             </div>
@@ -357,12 +368,13 @@
                             <table>
                                 <thead>
                                     <tr>
+                                        <th>Fecha</th>
                                         <th>Descripción</th>
                                         <th>Categoría</th>
                                         <th>Pagado por</th>
                                         <th>Destinado a</th>
                                         <th style="text-align: right;">Monto</th>
-                                        <th style="width: 100px; text-align: center;">Acción</th>
+                                        <th style="width: 130px; text-align: center;">Acción</th>
                                     </tr>
                                 </thead>
                                 <tbody id="table-var-body">
@@ -600,6 +612,45 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.duet_budget;</code></pre>
                 
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="closeEditGoalModal()">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- EDIT ITEM MODAL (Income / Expenses) -->
+    <div id="edit-item-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="edit-item-title">Editar Registro</h3>
+                <button type="button" class="modal-close" onclick="closeEditItemModal()">&times;</button>
+            </div>
+            <form id="form-edit-item">
+                <input type="hidden" id="edit-item-id">
+                <input type="hidden" id="edit-item-type"> <!-- 'income', 'fixedExpenses', 'varExpenses' -->
+                
+                <div class="config-form-group">
+                    <label for="edit-item-desc">Descripción</label>
+                    <input type="text" id="edit-item-desc" required>
+                </div>
+                
+                <div style="display: flex; gap: 1rem;">
+                    <div class="config-form-group" style="flex: 1;">
+                        <label for="edit-item-date">Fecha</label>
+                        <input type="date" id="edit-item-date" required>
+                    </div>
+                    
+                    <div class="config-form-group" style="flex: 1;">
+                        <label for="edit-item-amount">Monto</label>
+                        <input type="number" id="edit-item-amount" min="0" step="any" required>
+                    </div>
+                </div>
+
+                <!-- Dynamic fields based on record type -->
+                <div id="edit-item-dynamic-fields"></div>
+                
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeEditItemModal()">Cancelar</button>
                     <button type="submit" class="btn btn-primary">Guardar Cambios</button>
                 </div>
             </form>

@@ -595,6 +595,10 @@ tr:last-child td {
     flex: 0 0 100px;
 }
 
+.form-group.medium {
+    flex: 0 0 150px;
+}
+
 .form-group select,
 .form-group input {
     width: 100%;
