@@ -347,17 +347,95 @@ function updateConfigUI() {
     });
 }
 
+// --- SORTING, FILTERING & DUPLICATE DETECTION HELPERS ---
+let sortOrders = {
+    income: 'asc',
+    fixedExpenses: 'asc',
+    varExpenses: 'asc'
+};
+
+function toggleSortOrder(type) {
+    sortOrders[type] = sortOrders[type] === 'asc' ? 'desc' : 'asc';
+    const icon = document.getElementById(`sort-icon-${type}`);
+    if (icon) {
+        icon.textContent = sortOrders[type] === 'asc' ? '▲' : '▼';
+    }
+    renderApp();
+}
+
+function sortItemsByDate(items, order = 'asc') {
+    if (!items || !Array.isArray(items)) return [];
+    return [...items].sort((a, b) => {
+        const dateA = a.date || `${state.currentMonth}-01`;
+        const dateB = b.date || `${state.currentMonth}-01`;
+        const comp = dateA.localeCompare(dateB);
+        return order === 'asc' ? comp : -comp;
+    });
+}
+
+function findDuplicateIds(list) {
+    if (!list || !Array.isArray(list)) return new Set();
+    const counts = {};
+    list.forEach(item => {
+        const normDesc = (item.desc || '').trim().toLowerCase();
+        const key = `${normDesc}::${Number(item.amount)}`;
+        counts[key] = (counts[key] || 0) + 1;
+    });
+    
+    const duplicateIds = new Set();
+    list.forEach(item => {
+        const normDesc = (item.desc || '').trim().toLowerCase();
+        const key = `${normDesc}::${Number(item.amount)}`;
+        if (counts[key] > 1) {
+            duplicateIds.add(item.id);
+        }
+    });
+    return duplicateIds;
+}
+
+function filterListBySearch(list, query, type) {
+    if (!query || !query.trim()) return list;
+    const q = query.trim().toLowerCase();
+    return list.filter(item => {
+        const desc = (item.desc || '').toLowerCase();
+        const amountStr = String(item.amount || '');
+        const dateStr = formatDateDisplay(item.date || `${state.currentMonth}-01`).toLowerCase();
+        
+        let memberText = '';
+        if (type === 'income') {
+            memberText = item.owner === 'member1' ? state.config.member1 : (item.owner === 'member2' ? state.config.member2 : 'común');
+        } else {
+            const payerText = item.payer === 'member1' ? state.config.member1 : state.config.member2;
+            const splitText = item.split === 'shared' ? 'común' : (item.split === 'member1' ? state.config.member1 : state.config.member2);
+            memberText = `${payerText} ${splitText}`;
+        }
+        const cat = (item.category || '').toLowerCase();
+        
+        return desc.includes(q) || amountStr.includes(q) || dateStr.includes(q) || memberText.toLowerCase().includes(q) || cat.includes(q);
+    });
+}
+
 // Render Income Tab Table
 function renderIncome(incomeList) {
     const tbody = document.getElementById("table-income-body");
     tbody.innerHTML = "";
     
-    if (incomeList.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No hay ingresos registrados para este mes.</td></tr>`;
+    const sortedList = sortItemsByDate(incomeList || [], sortOrders.income);
+    const dupSet = findDuplicateIds(sortedList);
+    const searchVal = document.getElementById("search-income")?.value || "";
+    const filteredList = filterListBySearch(sortedList, searchVal, "income");
+    
+    const countBadge = document.getElementById("search-count-income");
+    if (countBadge) {
+        countBadge.textContent = searchVal.trim() ? `${filteredList.length} de ${incomeList.length}` : `${incomeList.length} registros`;
+    }
+
+    if (filteredList.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">${searchVal.trim() ? 'No se encontraron ingresos con ese filtro.' : 'No hay ingresos registrados para este mes.'}</td></tr>`;
         return;
     }
     
-    incomeList.forEach(inc => {
+    filteredList.forEach(inc => {
         const tr = document.createElement("tr");
         
         let ownerLabel = "";
@@ -366,10 +444,12 @@ function renderIncome(incomeList) {
         else ownerLabel = `<span class="badge badge-shared">Compartido</span>`;
         
         const displayDate = formatDateDisplay(inc.date || `${state.currentMonth}-01`);
+        const isDuplicate = dupSet.has(inc.id);
+        const dupBadge = isDuplicate ? `<span class="badge-duplicate" title="Hay otro ingreso con la misma descripción y monto en este mes">⚠️ Posible duplicado</span>` : '';
         
         tr.innerHTML = `
             <td>${displayDate}</td>
-            <td>${inc.desc}</td>
+            <td>${inc.desc} ${dupBadge}</td>
             <td>${ownerLabel}</td>
             <td style="text-align: right; font-weight:700;">${formatVal(inc.amount)}</td>
             <td style="text-align: center;">
@@ -390,12 +470,22 @@ function renderFixedExpenses(fixedList) {
     const tbody = document.getElementById("table-fixed-body");
     tbody.innerHTML = "";
     
-    if (fixedList.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No hay egresos fijos registrados.</td></tr>`;
+    const sortedList = sortItemsByDate(fixedList || [], sortOrders.fixedExpenses);
+    const dupSet = findDuplicateIds(sortedList);
+    const searchVal = document.getElementById("search-fixed")?.value || "";
+    const filteredList = filterListBySearch(sortedList, searchVal, "fixedExpenses");
+    
+    const countBadge = document.getElementById("search-count-fixed");
+    if (countBadge) {
+        countBadge.textContent = searchVal.trim() ? `${filteredList.length} de ${fixedList.length}` : `${fixedList.length} registros`;
+    }
+
+    if (filteredList.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">${searchVal.trim() ? 'No se encontraron egresos fijos con ese filtro.' : 'No hay egresos fijos registrados.'}</td></tr>`;
         return;
     }
     
-    fixedList.forEach(exp => {
+    filteredList.forEach(exp => {
         const tr = document.createElement("tr");
         
         let payerLabel = exp.payer === "member1" ? `<span class="badge badge-cris">${state.config.member1}</span>` : `<span class="badge badge-flor">${state.config.member2}</span>`;
@@ -406,10 +496,12 @@ function renderFixedExpenses(fixedList) {
         else splitLabel = `<span class="badge badge-flor">Solo ${state.config.member2}</span>`;
         
         const displayDate = formatDateDisplay(exp.date || `${state.currentMonth}-01`);
+        const isDuplicate = dupSet.has(exp.id);
+        const dupBadge = isDuplicate ? `<span class="badge-duplicate" title="Hay otro egreso con la misma descripción y monto en este mes">⚠️ Posible duplicado</span>` : '';
         
         tr.innerHTML = `
             <td>${displayDate}</td>
-            <td>${exp.desc}</td>
+            <td>${exp.desc} ${dupBadge}</td>
             <td>${payerLabel}</td>
             <td>${splitLabel}</td>
             <td style="text-align: right; font-weight:700; color:var(--color-danger);">${formatVal(exp.amount)}</td>
@@ -431,12 +523,22 @@ function renderVarExpenses(varList) {
     const tbody = document.getElementById("table-var-body");
     tbody.innerHTML = "";
     
-    if (varList.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No hay egresos variables registrados.</td></tr>`;
+    const sortedList = sortItemsByDate(varList || [], sortOrders.varExpenses);
+    const dupSet = findDuplicateIds(sortedList);
+    const searchVal = document.getElementById("search-var")?.value || "";
+    const filteredList = filterListBySearch(sortedList, searchVal, "varExpenses");
+    
+    const countBadge = document.getElementById("search-count-var");
+    if (countBadge) {
+        countBadge.textContent = searchVal.trim() ? `${filteredList.length} de ${varList.length}` : `${varList.length} registros`;
+    }
+
+    if (filteredList.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">${searchVal.trim() ? 'No se encontraron egresos variables con ese filtro.' : 'No hay egresos variables registrados.'}</td></tr>`;
         return;
     }
     
-    varList.forEach(exp => {
+    filteredList.forEach(exp => {
         const tr = document.createElement("tr");
         
         let payerLabel = exp.payer === "member1" ? `<span class="badge badge-cris">${state.config.member1}</span>` : `<span class="badge badge-flor">${state.config.member2}</span>`;
@@ -447,10 +549,12 @@ function renderVarExpenses(varList) {
         else splitLabel = `<span class="badge badge-flor">Solo ${state.config.member2}</span>`;
         
         const displayDate = formatDateDisplay(exp.date || `${state.currentMonth}-01`);
+        const isDuplicate = dupSet.has(exp.id);
+        const dupBadge = isDuplicate ? `<span class="badge-duplicate" title="Hay otro egreso con la misma descripción y monto en este mes">⚠️ Posible duplicado</span>` : '';
         
         tr.innerHTML = `
             <td>${displayDate}</td>
-            <td>${exp.desc}</td>
+            <td>${exp.desc} ${dupBadge}</td>
             <td><span class="badge" style="background:rgba(255,255,255,0.04); color:var(--text-secondary); border:1px solid rgba(255,255,255,0.05);">${exp.category}</span></td>
             <td>${payerLabel}</td>
             <td>${splitLabel}</td>
@@ -1150,6 +1254,17 @@ function setupEventListeners() {
     document.getElementById("btn-export-pdf").addEventListener("click", () => {
         window.print();
     });
+
+    // Export Excel (.xlsx)
+    const btnExcelHeader = document.getElementById("btn-export-excel");
+    if (btnExcelHeader) {
+        btnExcelHeader.addEventListener("click", exportToExcel);
+    }
+    
+    const btnExcelConfig = document.getElementById("btn-export-excel-config");
+    if (btnExcelConfig) {
+        btnExcelConfig.addEventListener("click", exportToExcel);
+    }
     
     // Export Database (JSON download)
     document.getElementById("btn-export-data").addEventListener("click", () => {
@@ -1659,5 +1774,155 @@ window.openEditItemModal = function(type, id) {
 window.closeEditItemModal = function() {
     document.getElementById("edit-item-modal").classList.remove("active");
 };
+
+window.toggleSortOrder = toggleSortOrder;
+
+// Export Month Data to Excel Workbook (.xlsx)
+function exportToExcel() {
+    try {
+        const currentData = state.months[state.currentMonth] || { income: [], fixedExpenses: [], varExpenses: [], savings: [] };
+        const member1 = state.config.member1 || "Cris";
+        const member2 = state.config.member2 || "Flor";
+        const currency = state.config.currency || "$";
+
+        // Calculate Totals for Summary Sheet
+        let totalInc = 0;
+        let incM1 = 0, incM2 = 0, incShared = 0;
+        (currentData.income || []).forEach(inc => {
+            const amt = Number(inc.amount) || 0;
+            totalInc += amt;
+            if (inc.owner === "member1") incM1 += amt;
+            else if (inc.owner === "member2") incM2 += amt;
+            else incShared += amt;
+        });
+
+        let totalFixed = 0;
+        (currentData.fixedExpenses || []).forEach(exp => totalFixed += (Number(exp.amount) || 0));
+
+        let totalVar = 0;
+        (currentData.varExpenses || []).forEach(exp => totalVar += (Number(exp.amount) || 0));
+
+        let totalExp = totalFixed + totalVar;
+        let totalSav = 0;
+        let totalInv = 0;
+        (currentData.savings || []).forEach(sav => {
+            if (sav.category === "Ahorro") totalSav += (Number(sav.saved) || 0);
+            else totalInv += (Number(sav.saved) || 0);
+        });
+
+        let netBalance = totalInc - totalExp;
+
+        // 1. Resumen Data
+        const summaryData = [
+            { "Concepto": "Mes de Presupuesto", "Detalle / Valor": state.currentMonth },
+            { "Concepto": `Ingresos Totales`, "Detalle / Valor": `${currency}${totalInc.toFixed(2)}` },
+            { "Concepto": `Ingresos ${member1}`, "Detalle / Valor": `${currency}${incM1.toFixed(2)}` },
+            { "Concepto": `Ingresos ${member2}`, "Detalle / Valor": `${currency}${incM2.toFixed(2)}` },
+            { "Concepto": `Ingresos Comunes / Pasivos`, "Detalle / Valor": `${currency}${incShared.toFixed(2)}` },
+            { "Concepto": "Egresos Fijos Totales", "Detalle / Valor": `${currency}${totalFixed.toFixed(2)}` },
+            { "Concepto": "Egresos Variables Totales", "Detalle / Valor": `${currency}${totalVar.toFixed(2)}` },
+            { "Concepto": "Egresos Totales (Fijos + Variables)", "Detalle / Valor": `${currency}${totalExp.toFixed(2)}` },
+            { "Concepto": "Ahorros Acumulados", "Detalle / Valor": `${currency}${totalSav.toFixed(2)}` },
+            { "Concepto": "Inversiones Acumuladas", "Detalle / Valor": `${currency}${totalInv.toFixed(2)}` },
+            { "Concepto": "Balance Disponible (Ingresos - Gastos)", "Detalle / Valor": `${currency}${netBalance.toFixed(2)}` }
+        ];
+
+        // Add settlement info if present
+        const settlementTitleEl = document.getElementById("settlement-title");
+        const settlementDetailsEl = document.getElementById("settlement-details");
+        const settlementValEl = document.getElementById("settlement-value");
+        if (settlementTitleEl && settlementValEl) {
+            summaryData.push({ "Concepto": "Cuentas Claras (Liquidación)", "Detalle / Valor": `${settlementTitleEl.textContent}: ${settlementValEl.textContent} (${settlementDetailsEl.textContent})` });
+        }
+
+        // 2. Ingresos Data
+        const incomeRows = sortItemsByDate(currentData.income || [], 'asc').map(inc => ({
+            "Fecha": formatDateDisplay(inc.date || `${state.currentMonth}-01`),
+            "Descripción": inc.desc || "",
+            "Proveedor": inc.owner === "member1" ? member1 : (inc.owner === "member2" ? member2 : "Común / Compartido"),
+            "Monto": Number(inc.amount) || 0
+        }));
+
+        // 3. Egresos Fijos Data
+        const fixedRows = sortItemsByDate(currentData.fixedExpenses || [], 'asc').map(exp => ({
+            "Fecha": formatDateDisplay(exp.date || `${state.currentMonth}-01`),
+            "Descripción": exp.desc || "",
+            "Pagado Por": exp.payer === "member1" ? member1 : member2,
+            "Destinado A": exp.split === "shared" ? "Dividido (Común)" : (exp.split === "member1" ? `Solo ${member1}` : `Solo ${member2}`),
+            "Monto": Number(exp.amount) || 0
+        }));
+
+        // 4. Egresos Variables Data
+        const varRows = sortItemsByDate(currentData.varExpenses || [], 'asc').map(exp => ({
+            "Fecha": formatDateDisplay(exp.date || `${state.currentMonth}-01`),
+            "Descripción": exp.desc || "",
+            "Categoría": exp.category || "Otros",
+            "Pagado Por": exp.payer === "member1" ? member1 : member2,
+            "Destinado A": exp.split === "shared" ? "Dividido (Común)" : (exp.split === "member1" ? `Solo ${member1}` : `Solo ${member2}`),
+            "Monto": Number(exp.amount) || 0
+        }));
+
+        // 5. Metas Data
+        const savingsRows = (currentData.savings || []).map(sav => {
+            const saved = Number(sav.saved) || 0;
+            const target = Number(sav.target) || 0;
+            const pct = target > 0 ? `${Math.min(Math.round((saved / target) * 100), 100)}%` : "0%";
+            return {
+                "Meta / Inversión": sav.desc || "",
+                "Tipo": sav.category || "Ahorro",
+                "Divisa": sav.currency || currency,
+                "Acumulado Actual": saved,
+                "Meta Total": target,
+                "% Cumplimiento": pct
+            };
+        });
+
+        // Use SheetJS if available
+        if (typeof XLSX !== 'undefined') {
+            const wb = XLSX.utils.book_new();
+
+            const wsSummary = XLSX.utils.json_to_sheet(summaryData);
+            const wsIncome = XLSX.utils.json_to_sheet(incomeRows.length ? incomeRows : [{ "Fecha": "-", "Descripción": "Sin registros", "Proveedor": "-", "Monto": 0 }]);
+            const wsFixed = XLSX.utils.json_to_sheet(fixedRows.length ? fixedRows : [{ "Fecha": "-", "Descripción": "Sin registros", "Pagado Por": "-", "Destinado A": "-", "Monto": 0 }]);
+            const wsVar = XLSX.utils.json_to_sheet(varRows.length ? varRows : [{ "Fecha": "-", "Descripción": "Sin registros", "Categoría": "-", "Pagado Por": "-", "Destinado A": "-", "Monto": 0 }]);
+            const wsSavings = XLSX.utils.json_to_sheet(savingsRows.length ? savingsRows : [{ "Meta / Inversión": "Sin metas", "Tipo": "-", "Divisa": "-", "Acumulado Actual": 0, "Meta Total": 0, "% Cumplimiento": "0%" }]);
+
+            XLSX.utils.book_append_sheet(wb, wsSummary, "Resumen_Mes");
+            XLSX.utils.book_append_sheet(wb, wsIncome, "Ingresos");
+            XLSX.utils.book_append_sheet(wb, wsFixed, "Egresos_Fijos");
+            XLSX.utils.book_append_sheet(wb, wsVar, "Egresos_Variables");
+            XLSX.utils.book_append_sheet(wb, wsSavings, "Ahorros_e_Inversiones");
+
+            XLSX.writeFile(wb, `DuetBudget_${state.currentMonth}.xlsx`);
+            showToast(`¡Presupuesto de ${state.currentMonth} exportado a Excel con éxito!`, "success");
+        } else {
+            // Fallback CSV generation if SheetJS CDN is offline
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += `DuetBudget - ${state.currentMonth}\n\nRESUMEN\nConcepto,Valor\n`;
+            summaryData.forEach(r => csvContent += `"${r["Concepto"]}","${r["Detalle / Valor"]}"\n`);
+            
+            csvContent += `\nINGRESOS\nFecha,Descripción,Proveedor,Monto\n`;
+            incomeRows.forEach(r => csvContent += `"${r["Fecha"]}","${r["Descripción"]}","${r["Proveedor"]}",${r["Monto"]}\n`);
+            
+            csvContent += `\nEGRESOS FIJOS\nFecha,Descripción,Pagado Por,Destinado A,Monto\n`;
+            fixedRows.forEach(r => csvContent += `"${r["Fecha"]}","${r["Descripción"]}","${r["Pagado Por"]}","${r["Destinado A"]}",${r["Monto"]}\n`);
+
+            csvContent += `\nEGRESOS VARIABLES\nFecha,Descripción,Categoría,Pagado Por,Destinado A,Monto\n`;
+            varRows.forEach(r => csvContent += `"${r["Fecha"]}","${r["Descripción"]}","${r["Categoría"]}","${r["Pagado Por"]}","${r["Destinado A"]}",${r["Monto"]}\n`);
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `DuetBudget_${state.currentMonth}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            showToast(`Presupuesto exportado como CSV de respaldo.`, "info");
+        }
+    } catch (err) {
+        console.error("Error al exportar a Excel: ", err);
+        showToast("Error al generar el archivo Excel: " + err.message, "error");
+    }
+}
 
 
