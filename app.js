@@ -570,8 +570,6 @@ function renderVarExpenses(varList) {
     const tbody = document.getElementById("table-var-body");
     tbody.innerHTML = "";
     
-    updateCategoryFilterOptions(varList);
-    
     const sortedList = sortItemsByDate(varList || [], sortOrders.varExpenses);
     const dupSet = findDuplicateIds(sortedList);
     const catFilter = document.getElementById("filter-category-var")?.value || "";
