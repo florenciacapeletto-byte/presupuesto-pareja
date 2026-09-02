@@ -578,6 +578,18 @@ canvas {
     gap: 0.2rem;
 }
 
+.category-badge-clickable {
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.category-badge-clickable:hover {
+    background: var(--color-primary-light) !important;
+    color: #c084fc !important;
+    border-color: rgba(139, 92, 246, 0.4) !important;
+    transform: translateY(-1px);
+}
+
 .table-responsive {
     overflow-x: auto;
 }

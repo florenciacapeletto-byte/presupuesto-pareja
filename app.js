@@ -518,10 +518,59 @@ function renderFixedExpenses(fixedList) {
     });
 }
 
+// Helper for flexible category matching (robust against accents, casing, slashes)
+function matchesCategory(itemCategory, filterCategory) {
+    if (!filterCategory) return true;
+    if (!itemCategory) return false;
+    if (itemCategory === filterCategory) return true;
+    const norm = (str) => String(str).toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[\/\s&y]/g, "");
+    const c1 = norm(itemCategory);
+    const c2 = norm(filterCategory);
+    return c1.includes(c2) || c2.includes(c1);
+}
+
+// Populate and update category filter select options with item counts
+function updateCategoryFilterOptions(varList) {
+    const select = document.getElementById("filter-category-var");
+    if (!select) return;
+    const currentVal = select.value;
+    
+    const categoriesSet = new Set();
+    const standardCategories = ["Alimentación", "Salidas y Ocio", "Transporte", "Salud y Cuidado", "Suscripciones", "Hogar", "Otros"];
+    standardCategories.forEach(c => categoriesSet.add(c));
+    
+    (varList || []).forEach(item => {
+        if (item.category && item.category.trim()) {
+            categoriesSet.add(item.category.trim());
+        }
+    });
+    
+    let html = `<option value="">Todas las categorías (${varList ? varList.length : 0})</option>`;
+    categoriesSet.forEach(cat => {
+        const count = (varList || []).filter(item => matchesCategory(item.category, cat)).length;
+        if (count > 0 || standardCategories.includes(cat)) {
+            html += `<option value="${cat}">${cat} (${count})</option>`;
+        }
+    });
+    
+    select.innerHTML = html;
+    select.value = currentVal;
+}
+
+window.filterByCategory = function(catName) {
+    const select = document.getElementById("filter-category-var");
+    if (select) {
+        select.value = catName;
+        renderApp();
+    }
+};
+
 // Render Variable Expenses Tab Table
 function renderVarExpenses(varList) {
     const tbody = document.getElementById("table-var-body");
     tbody.innerHTML = "";
+    
+    updateCategoryFilterOptions(varList);
     
     const sortedList = sortItemsByDate(varList || [], sortOrders.varExpenses);
     const dupSet = findDuplicateIds(sortedList);
@@ -529,7 +578,7 @@ function renderVarExpenses(varList) {
     
     let baseList = sortedList;
     if (catFilter) {
-        baseList = baseList.filter(item => (item.category || '') === catFilter);
+        baseList = baseList.filter(item => matchesCategory(item.category, catFilter));
     }
     
     const searchVal = document.getElementById("search-var")?.value || "";
@@ -563,7 +612,7 @@ function renderVarExpenses(varList) {
         tr.innerHTML = `
             <td>${displayDate}</td>
             <td>${exp.desc} ${dupBadge}</td>
-            <td><span class="badge" style="background:rgba(255,255,255,0.04); color:var(--text-secondary); border:1px solid rgba(255,255,255,0.05);">${exp.category}</span></td>
+            <td><span class="badge category-badge-clickable" style="background:rgba(255,255,255,0.06); color:var(--text-secondary); border:1px solid rgba(255,255,255,0.1);" onclick="filterByCategory('${exp.category}')" title="Haz clic para filtrar por la categoría ${exp.category}">${exp.category}</span></td>
             <td>${payerLabel}</td>
             <td>${splitLabel}</td>
             <td style="text-align: right; font-weight:700; color:var(--color-danger);">${formatVal(exp.amount)}</td>
