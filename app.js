@@ -525,16 +525,24 @@ function renderVarExpenses(varList) {
     
     const sortedList = sortItemsByDate(varList || [], sortOrders.varExpenses);
     const dupSet = findDuplicateIds(sortedList);
+    const catFilter = document.getElementById("filter-category-var")?.value || "";
+    
+    let baseList = sortedList;
+    if (catFilter) {
+        baseList = baseList.filter(item => (item.category || '') === catFilter);
+    }
+    
     const searchVal = document.getElementById("search-var")?.value || "";
-    const filteredList = filterListBySearch(sortedList, searchVal, "varExpenses");
+    const filteredList = filterListBySearch(baseList, searchVal, "varExpenses");
     
     const countBadge = document.getElementById("search-count-var");
     if (countBadge) {
-        countBadge.textContent = searchVal.trim() ? `${filteredList.length} de ${varList.length}` : `${varList.length} registros`;
+        const isFiltering = Boolean(searchVal.trim() || catFilter);
+        countBadge.textContent = isFiltering ? `${filteredList.length} de ${varList.length}` : `${varList.length} registros`;
     }
 
     if (filteredList.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">${searchVal.trim() ? 'No se encontraron egresos variables con ese filtro.' : 'No hay egresos variables registrados.'}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">${(searchVal.trim() || catFilter) ? 'No se encontraron egresos variables con ese filtro.' : 'No hay egresos variables registrados.'}</td></tr>`;
         return;
     }
     
