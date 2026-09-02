@@ -217,6 +217,10 @@
                     <div class="glass-card table-card">
                         <div class="table-header">
                             <h3>Registrar Ingresos del Mes</h3>
+                            <div class="table-search-box">
+                                <input type="text" id="search-income" placeholder="🔍 Buscar ingresos..." class="search-input" oninput="renderApp()">
+                                <span id="search-count-income" class="search-count-badge"></span>
+                            </div>
                         </div>
                         
                         <form id="form-income" class="form-inline-row">
@@ -246,7 +250,7 @@
                             <table>
                                 <thead>
                                     <tr>
-                                        <th>Fecha</th>
+                                        <th class="sortable-th" onclick="toggleSortOrder('income')" title="Haz clic para cambiar el orden por fecha">Fecha <span id="sort-icon-income">▲</span></th>
                                         <th>Descripción</th>
                                         <th>Proveedor</th>
                                         <th style="text-align: right;">Monto</th>
@@ -266,6 +270,10 @@
                     <div class="glass-card table-card">
                         <div class="table-header">
                             <h3>Egresos Fijos (Servicios, Vivienda, Contratos)</h3>
+                            <div class="table-search-box">
+                                <input type="text" id="search-fixed" placeholder="🔍 Buscar egresos fijos..." class="search-input" oninput="renderApp()">
+                                <span id="search-count-fixed" class="search-count-badge"></span>
+                            </div>
                         </div>
                         
                         <form id="form-expenses-fixed" class="form-inline-row">
@@ -301,7 +309,7 @@
                             <table>
                                 <thead>
                                     <tr>
-                                        <th>Fecha</th>
+                                        <th class="sortable-th" onclick="toggleSortOrder('fixedExpenses')" title="Haz clic para cambiar el orden por fecha">Fecha <span id="sort-icon-fixedExpenses">▲</span></th>
                                         <th>Descripción</th>
                                         <th>Pagado por</th>
                                         <th>Destinado a</th>
@@ -322,6 +330,10 @@
                     <div class="glass-card table-card">
                         <div class="table-header">
                             <h3>Egresos Variables (Supermercado, Salidas, Transporte, Caprichos)</h3>
+                            <div class="table-search-box">
+                                <input type="text" id="search-var" placeholder="🔍 Buscar egresos variables..." class="search-input" oninput="renderApp()">
+                                <span id="search-count-var" class="search-count-badge"></span>
+                            </div>
                         </div>
                         
                         <form id="form-expenses-var" class="form-inline-row">
@@ -368,7 +380,7 @@
                             <table>
                                 <thead>
                                     <tr>
-                                        <th>Fecha</th>
+                                        <th class="sortable-th" onclick="toggleSortOrder('varExpenses')" title="Haz clic para cambiar el orden por fecha">Fecha <span id="sort-icon-varExpenses">▲</span></th>
                                         <th>Descripción</th>
                                         <th>Categoría</th>
                                         <th>Pagado por</th>
