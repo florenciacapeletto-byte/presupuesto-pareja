@@ -2173,25 +2173,36 @@ window.deleteUpcomingExpense = function(id) {
 };
 
 // --- MODULE 2: HISTORICAL PERIOD ANALYSIS LOGIC ---
-function populatePeriodMonthSelectors() {
+function populatePeriodMonthSelectors(force = false) {
     const startSel = document.getElementById("period-start-month");
     const endSel = document.getElementById("period-end-month");
     if (!startSel || !endSel) return;
 
+    // If options are already populated and force is false, do not destroy DOM options
+    if (!force && startSel.options.length > 0 && endSel.options.length > 0) {
+        return;
+    }
+
     const currentStart = startSel.value;
     const currentEnd = endSel.value;
+
+    const monthKeysSet = new Set(Object.keys(state.months || {}));
+    
+    // Always include a spectrum of months from 12 months ago to 6 months in future
+    const now = new Date();
+    for (let i = -12; i <= 6; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        monthKeysSet.add(key);
+    }
+
+    const sortedMonthKeys = Array.from(monthKeysSet).sort();
+    const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
     startSel.innerHTML = "";
     endSel.innerHTML = "";
 
-    const monthKeys = Array.from(new Set(Object.keys(state.months))).sort();
-    if (monthKeys.length === 0) {
-        monthKeys.push(state.currentMonth || "2026-09");
-    }
-
-    const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-
-    monthKeys.forEach((mKey) => {
+    sortedMonthKeys.forEach((mKey) => {
         const [year, month] = mKey.split("-");
         const label = `${monthNames[parseInt(month) - 1]} ${year}`;
 
@@ -2206,8 +2217,19 @@ function populatePeriodMonthSelectors() {
         endSel.appendChild(opt2);
     });
 
-    startSel.value = currentStart && monthKeys.includes(currentStart) ? currentStart : monthKeys[0];
-    endSel.value = currentEnd && monthKeys.includes(currentEnd) ? currentEnd : monthKeys[monthKeys.length - 1];
+    if (currentStart && sortedMonthKeys.includes(currentStart)) {
+        startSel.value = currentStart;
+    } else {
+        const actualMonthsInState = Object.keys(state.months || {}).sort();
+        startSel.value = actualMonthsInState.length ? actualMonthsInState[0] : sortedMonthKeys[0];
+    }
+
+    if (currentEnd && sortedMonthKeys.includes(currentEnd)) {
+        endSel.value = currentEnd;
+    } else {
+        const actualMonthsInState = Object.keys(state.months || {}).sort();
+        endSel.value = actualMonthsInState.length ? actualMonthsInState[actualMonthsInState.length - 1] : state.currentMonth;
+    }
 }
 
 let periodMonthlyChartInstance = null;
@@ -2215,7 +2237,8 @@ let periodCategoryChartInstance = null;
 let cachedPeriodRows = [];
 
 function renderPeriodAnalysis() {
-    populatePeriodMonthSelectors();
+    // Populate month selectors only if they are not initialized
+    populatePeriodMonthSelectors(false);
 
     const startMonth = document.getElementById("period-start-month")?.value;
     const endMonth = document.getElementById("period-end-month")?.value;
@@ -2224,7 +2247,7 @@ function renderPeriodAnalysis() {
 
     if (!startMonth || !endMonth) return;
 
-    const allMonths = Array.from(new Set(Object.keys(state.months))).sort();
+    const allMonths = Array.from(new Set([...Object.keys(state.months || {}), startMonth, endMonth])).sort();
     let selectedMonths = allMonths.filter(m => m >= startMonth && m <= endMonth);
     if (selectedMonths.length === 0) {
         selectedMonths = [startMonth];
