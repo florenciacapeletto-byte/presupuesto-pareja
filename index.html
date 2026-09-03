@@ -69,6 +69,22 @@
                             <span>Inversiones</span>
                         </button>
                     </li>
+                    <li class="nav-item" data-tab="upcoming">
+                        <button type="button">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            <span>Próximos Gastos</span>
+                        </button>
+                    </li>
+                    <li class="nav-item" data-tab="analysis">
+                        <button type="button">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                            </svg>
+                            <span>Análisis por Período</span>
+                        </button>
+                    </li>
                     <li class="nav-item" data-tab="settings">
                         <button type="button">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -476,6 +492,238 @@
 
                     <div id="investments-goals-grid">
                         <!-- Investment Cards Rendered dynamically -->
+                    </div>
+                </section>
+
+                <!-- TAB: UPCOMING EXPENSES -->
+                <section id="tab-upcoming" class="tab-content">
+                    <div class="summary-grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-bottom: 1.5rem;">
+                        <div class="glass-card summary-card income">
+                            <div class="card-header-small">
+                                <span>Gastos Próximos 30 Días</span>
+                                <span>🗓️</span>
+                            </div>
+                            <div class="card-value" id="card-upcoming-30d">$0.00</div>
+                            <div class="card-desc">Compromisos a corto plazo</div>
+                        </div>
+                        <div class="glass-card summary-card expenses">
+                            <div class="card-header-small">
+                                <span>Total Presupuestado Futuro</span>
+                                <span>🎯</span>
+                            </div>
+                            <div class="card-value" id="card-upcoming-total">$0.00</div>
+                            <div class="card-desc" id="card-upcoming-count">0 gastos pendientes</div>
+                        </div>
+                    </div>
+
+                    <div class="glass-card table-card">
+                        <div class="table-header">
+                            <h3>Presupuestar Próximos Gastos (Viajes, Reparaciones, Compras Grandes)</h3>
+                            <div class="table-search-box">
+                                <input type="text" id="search-upcoming" placeholder="🔍 Buscar gasto futuro..." class="search-input" oninput="renderApp()">
+                                <span id="search-count-upcoming" class="search-count-badge"></span>
+                            </div>
+                        </div>
+                        
+                        <form id="form-upcoming" class="form-inline-row">
+                            <div class="form-group medium">
+                                <input type="date" id="upcoming-date" required>
+                            </div>
+                            <div class="form-group">
+                                <input type="text" id="upcoming-desc" placeholder="Ej. Patente auto, Vacaciones, Reparación heladera" required>
+                            </div>
+                            <div class="form-group small">
+                                <select id="upcoming-category" required>
+                                    <option value="Alimentación">Alimentación</option>
+                                    <option value="Salidas y Ocio">Salidas/Ocio</option>
+                                    <option value="Transporte">Transporte / Auto</option>
+                                    <option value="Salud y Cuidado">Salud/Cuidado</option>
+                                    <option value="Suscripciones">Suscripciones</option>
+                                    <option value="Hogar">Hogar / Mantenimiento</option>
+                                    <option value="Viajes">Viajes / Vacaciones</option>
+                                    <option value="Otros">Otros</option>
+                                </select>
+                            </div>
+                            <div class="form-group small">
+                                <select id="upcoming-payer" required>
+                                    <option value="member1">Pagará Cris</option>
+                                    <option value="member2">Pagará Flor</option>
+                                </select>
+                            </div>
+                            <div class="form-group small">
+                                <select id="upcoming-split" required>
+                                    <option value="shared">Dividido (Común)</option>
+                                    <option value="member1">Solo Cris</option>
+                                    <option value="member2">Solo Flor</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <div class="input-icon-wrapper">
+                                    <span>$</span>
+                                    <input type="number" id="upcoming-amount" placeholder="Monto Est." min="0" step="any" required>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Presupuestar</button>
+                        </form>
+
+                        <div class="table-responsive">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th class="sortable-th" onclick="toggleSortOrder('upcoming')" title="Haz clic para cambiar el orden por fecha">Fecha Est. <span id="sort-icon-upcoming">▲</span></th>
+                                        <th>Descripción</th>
+                                        <th>Categoría</th>
+                                        <th>Pagador / Destino</th>
+                                        <th style="text-align: right;">Monto Est.</th>
+                                        <th style="text-align: center;">Estado</th>
+                                        <th style="width: 220px; text-align: center;">Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="table-upcoming-body">
+                                    <!-- Rendered dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- TAB: HISTORICAL PERIOD ANALYSIS -->
+                <section id="tab-analysis" class="tab-content">
+                    <!-- Period Controls -->
+                    <div class="glass-card" style="margin-bottom: 1.5rem; padding: 1.25rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem;">
+                            <div>
+                                <h3 style="font-size: 1.15rem; font-weight: 700;">📊 Análisis de Gastos por Período Personalizado</h3>
+                                <p style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 0.2rem;">
+                                    Analiza el consumo acumulado de tu pareja entre dos meses o fechas seleccionadas.
+                                </p>
+                            </div>
+                            <button class="btn btn-secondary" id="btn-export-period-excel" style="border-color: rgba(16, 185, 129, 0.3); color: #34d399;">
+                                📊 Exportar Período a Excel
+                            </button>
+                        </div>
+
+                        <div class="form-inline-row" style="margin-bottom: 0; background: rgba(255,255,255,0.015);">
+                            <div class="form-group medium">
+                                <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.25rem;">Desde (Mes)</label>
+                                <select id="period-start-month" class="search-input" style="width: 100%;" onchange="renderPeriodAnalysis()">
+                                    <!-- Populated dynamically -->
+                                </select>
+                            </div>
+                            <div class="form-group medium">
+                                <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.25rem;">Hasta (Mes)</label>
+                                <select id="period-end-month" class="search-input" style="width: 100%;" onchange="renderPeriodAnalysis()">
+                                    <!-- Populated dynamically -->
+                                </select>
+                            </div>
+                            <div class="form-group medium">
+                                <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.25rem;">Tipo de Registro</label>
+                                <select id="period-type-filter" class="search-input" style="width: 100%;" onchange="renderPeriodAnalysis()">
+                                    <option value="all_expenses">Todos los Gastos (Fijos + Var)</option>
+                                    <option value="fixedExpenses">Solo Egresos Fijos</option>
+                                    <option value="varExpenses">Solo Egresos Variables</option>
+                                    <option value="income">Solo Ingresos</option>
+                                </select>
+                            </div>
+                            <div class="form-group medium">
+                                <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.25rem;">Categoría</label>
+                                <select id="period-category-filter" class="search-input" style="width: 100%;" onchange="renderPeriodAnalysis()">
+                                    <option value="">Todas las Categorías</option>
+                                    <option value="Alimentación">Alimentación</option>
+                                    <option value="Salidas y Ocio">Salidas/Ocio</option>
+                                    <option value="Transporte">Transporte</option>
+                                    <option value="Salud y Cuidado">Salud/Cuidado</option>
+                                    <option value="Suscripciones">Suscripciones</option>
+                                    <option value="Hogar">Hogar</option>
+                                    <option value="Otros">Otros</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Period Summary Metrics Grid -->
+                    <div class="summary-grid" style="margin-bottom: 1.5rem;">
+                        <div class="glass-card summary-card expenses">
+                            <div class="card-header-small">
+                                <span>Gasto Total Acumulado</span>
+                                <span>💸</span>
+                            </div>
+                            <div class="card-value" id="period-total-spent">$0.00</div>
+                            <div class="card-desc" id="period-spent-months">En el período seleccionado</div>
+                        </div>
+
+                        <div class="glass-card summary-card balance">
+                            <div class="card-header-small">
+                                <span>Promedio Gastado por Mes</span>
+                                <span>📅</span>
+                            </div>
+                            <div class="card-value" id="period-avg-spent">$0.00</div>
+                            <div class="card-desc" id="period-months-count">0 meses analizados</div>
+                        </div>
+
+                        <div class="glass-card summary-card income">
+                            <div class="card-header-small">
+                                <span>Ingresos Totales del Período</span>
+                                <span>💵</span>
+                            </div>
+                            <div class="card-value" id="period-total-income">$0.00</div>
+                            <div class="card-desc" id="period-net-balance">Balance neto: $0.00</div>
+                        </div>
+
+                        <div class="glass-card summary-card savings">
+                            <div class="card-header-small">
+                                <span>Mayor Gasto por Categoría</span>
+                                <span>🏆</span>
+                            </div>
+                            <div class="card-value" id="period-top-category" style="font-size: 1.25rem;">-</div>
+                            <div class="card-desc" id="period-top-category-amount">Categoría más demandante</div>
+                        </div>
+                    </div>
+
+                    <!-- Period Charts Grid -->
+                    <div class="charts-grid" style="margin-bottom: 1.5rem;">
+                        <div class="glass-card chart-card">
+                            <h3>Evolución Mensual del Gasto en el Período</h3>
+                            <div class="chart-container">
+                                <canvas id="periodMonthlyChart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="glass-card chart-card">
+                            <h3>Distribución por Categoría en el Período</h3>
+                            <div class="chart-container">
+                                <canvas id="periodCategoryChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Period Consolidated Table -->
+                    <div class="glass-card table-card">
+                        <div class="table-header">
+                            <h3>Listado Consolidado del Período Seleccionado</h3>
+                            <div class="table-search-box">
+                                <input type="text" id="search-period" placeholder="🔍 Buscar en el período..." class="search-input" oninput="renderPeriodTable()">
+                                <span id="search-count-period" class="search-count-badge"></span>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Mes / Fecha</th>
+                                        <th>Descripción</th>
+                                        <th>Categoría / Tipo</th>
+                                        <th>Pagado por</th>
+                                        <th>Destinado a</th>
+                                        <th style="text-align: right;">Monto</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="table-period-body">
+                                    <!-- Rendered dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </section>
 

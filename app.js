@@ -61,6 +61,9 @@ function loadStateFromLocalStorage() {
             if (!state.currentMonth || typeof state.currentMonth !== 'string') {
                 state.currentMonth = SEED_MONTH;
             }
+            if (!Array.isArray(state.upcomingExpenses)) {
+                state.upcomingExpenses = [];
+            }
         } catch (e) {
             console.error("Error loading saved state. Using default/seed data.", e);
             seedState();
@@ -80,6 +83,7 @@ function seedState() {
     };
     state.currentMonth = SEED_MONTH;
     state.months = {};
+    state.upcomingExpenses = [];
     state.months[SEED_MONTH] = JSON.parse(JSON.stringify(SEED_DATA));
     saveState();
 }
@@ -213,6 +217,14 @@ function switchTab(tabId) {
             titleEl.textContent = "Inversiones";
             descEl.textContent = "Monitoreo del portafolio de inversión, CEDEARs, acciones o criptomonedas.";
             break;
+        case "upcoming":
+            titleEl.textContent = "Próximos Gastos";
+            descEl.textContent = "Planificador de compromisos y compras futuras.";
+            break;
+        case "analysis":
+            titleEl.textContent = "Análisis por Período";
+            descEl.textContent = "Informe histórico acumulado y consumo entre fechas.";
+            break;
         case "settings":
             titleEl.textContent = "Configuración";
             descEl.textContent = "Preferencias, división de cuentas y administración de datos.";
@@ -223,6 +235,10 @@ function switchTab(tabId) {
     if (tabId === "dashboard") {
         renderApp();
         setTimeout(renderCharts, 50);
+    } else if (tabId === "upcoming") {
+        renderUpcomingExpenses();
+    } else if (tabId === "analysis") {
+        renderPeriodAnalysis();
     }
 }
 
@@ -241,6 +257,7 @@ function renderApp() {
     renderFixedExpenses(currentData.fixedExpenses);
     renderVarExpenses(currentData.varExpenses);
     renderSavings(currentData.savings);
+    renderUpcomingExpenses();
     
     // Calculate final metrics and settlement
     calculateBudgetMetrics();
@@ -1320,6 +1337,47 @@ function setupEventListeners() {
     if (btnExcelConfig) {
         btnExcelConfig.addEventListener("click", exportToExcel);
     }
+
+    // Add Upcoming Expense Form Submit
+    const formUpcoming = document.getElementById("form-upcoming");
+    if (formUpcoming) {
+        formUpcoming.addEventListener("submit", (e) => {
+            e.preventDefault();
+            const date = document.getElementById("upcoming-date").value;
+            const desc = document.getElementById("upcoming-desc").value.trim();
+            const category = document.getElementById("upcoming-category").value;
+            const payer = document.getElementById("upcoming-payer").value;
+            const split = document.getElementById("upcoming-split").value;
+            const amount = Number(document.getElementById("upcoming-amount").value);
+
+            if (date && desc && amount > 0) {
+                if (!Array.isArray(state.upcomingExpenses)) {
+                    state.upcomingExpenses = [];
+                }
+                state.upcomingExpenses.push({
+                    id: 'up-' + Date.now(),
+                    date,
+                    desc,
+                    category,
+                    payer,
+                    split,
+                    amount,
+                    status: 'pendiente'
+                });
+
+                formUpcoming.reset();
+                saveState();
+                renderUpcomingExpenses();
+                showToast("¡Gasto futuro presupuestado con éxito!", "success");
+            }
+        });
+    }
+
+    // Export Period Excel Button
+    const btnExportPeriod = document.getElementById("btn-export-period-excel");
+    if (btnExportPeriod) {
+        btnExportPeriod.addEventListener("click", exportPeriodToExcel);
+    }
     
     // Export Database (JSON download)
     document.getElementById("btn-export-data").addEventListener("click", () => {
@@ -1948,6 +2006,19 @@ function exportToExcel() {
             XLSX.utils.book_append_sheet(wb, wsVar, "Egresos_Variables");
             XLSX.utils.book_append_sheet(wb, wsSavings, "Ahorros_e_Inversiones");
 
+            // Add Próximos Gastos Sheet
+            const upcomingRows = (state.upcomingExpenses || []).map(item => ({
+                "Fecha Est.": formatDateDisplay(item.date || ""),
+                "Descripción": item.desc || "",
+                "Categoría": item.category || "Otros",
+                "Pagador": item.payer === "member1" ? member1 : member2,
+                "Destino": item.split === "shared" ? "Dividido (Común)" : (item.split === "member1" ? `Solo ${member1}` : `Solo ${member2}`),
+                "Monto Est.": Number(item.amount) || 0,
+                "Estado": item.status === "pagado" ? "Convertido" : "Pendiente"
+            }));
+            const wsUpcoming = XLSX.utils.json_to_sheet(upcomingRows.length ? upcomingRows : [{ "Fecha Est.": "-", "Descripción": "Sin gastos futuros", "Categoría": "-", "Pagador": "-", "Destino": "-", "Monto Est.": 0, "Estado": "-" }]);
+            XLSX.utils.book_append_sheet(wb, wsUpcoming, "Próximos_Gastos");
+
             XLSX.writeFile(wb, `DuetBudget_${state.currentMonth}.xlsx`);
             showToast(`¡Presupuesto de ${state.currentMonth} exportado a Excel con éxito!`, "success");
         } else {
@@ -1977,6 +2048,447 @@ function exportToExcel() {
     } catch (err) {
         console.error("Error al exportar a Excel: ", err);
         showToast("Error al generar el archivo Excel: " + err.message, "error");
+    }
+}
+
+// --- MODULE 1: UPCOMING EXPENSES PLANNER LOGIC ---
+function renderUpcomingExpenses() {
+    if (!Array.isArray(state.upcomingExpenses)) {
+        state.upcomingExpenses = [];
+    }
+
+    const tbody = document.getElementById("table-upcoming-body");
+    if (!tbody) return;
+    tbody.innerHTML = "";
+
+    const now = new Date();
+    const date30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const nowStr = now.toISOString().substring(0, 10);
+    const date30Str = date30.toISOString().substring(0, 10);
+
+    let total30d = 0;
+    let totalAll = 0;
+    let pendingCount = 0;
+
+    state.upcomingExpenses.forEach(item => {
+        const amt = Number(item.amount) || 0;
+        const status = item.status || 'pendiente';
+        if (status === 'pendiente') {
+            totalAll += amt;
+            pendingCount++;
+            if (item.date >= nowStr && item.date <= date30Str) {
+                total30d += amt;
+            }
+        }
+    });
+
+    const card30d = document.getElementById("card-upcoming-30d");
+    if (card30d) card30d.textContent = formatVal(total30d);
+
+    const cardTotal = document.getElementById("card-upcoming-total");
+    if (cardTotal) cardTotal.textContent = formatVal(totalAll);
+
+    const cardCount = document.getElementById("card-upcoming-count");
+    if (cardCount) cardCount.textContent = `${pendingCount} gastos pendientes`;
+
+    const sortedList = sortItemsByDate(state.upcomingExpenses, sortOrders.upcoming || 'asc');
+    const searchVal = document.getElementById("search-upcoming")?.value || "";
+    const filteredList = filterListBySearch(sortedList, searchVal, "upcoming");
+
+    const countBadge = document.getElementById("search-count-upcoming");
+    if (countBadge) {
+        countBadge.textContent = searchVal.trim() ? `${filteredList.length} de ${state.upcomingExpenses.length}` : `${state.upcomingExpenses.length} presupuestados`;
+    }
+
+    if (filteredList.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">${searchVal.trim() ? 'No se encontraron gastos futuros con ese filtro.' : 'No hay gastos futuros presupuestados. Añade uno arriba.'}</td></tr>`;
+        return;
+    }
+
+    filteredList.forEach(item => {
+        const tr = document.createElement("tr");
+        const displayDate = formatDateDisplay(item.date || '');
+        
+        let payerLabel = item.payer === "member1" ? `<span class="badge badge-cris">Pagará ${state.config.member1}</span>` : `<span class="badge badge-flor">Pagará ${state.config.member2}</span>`;
+        let splitLabel = "";
+        if (item.split === "shared") splitLabel = `<span class="badge badge-shared">Común</span>`;
+        else if (item.split === "member1") splitLabel = `<span class="badge badge-cris">Solo ${state.config.member1}</span>`;
+        else splitLabel = `<span class="badge badge-flor">Solo ${state.config.member2}</span>`;
+
+        const isPaid = item.status === 'pagado';
+        const statusBadge = isPaid 
+            ? `<span class="badge-status-paid">✅ Convertido</span>` 
+            : `<span class="badge-status-pending">⌛ Pendiente</span>`;
+
+        const actionButtons = isPaid 
+            ? `<button class="btn btn-secondary" style="padding: 0.35rem 0.65rem; font-size: 0.75rem; margin-right: 0.25rem;" onclick="openEditItemModal('upcoming', '${item.id}')">Editar</button>
+               <button class="btn btn-danger" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;" onclick="deleteUpcomingExpense('${item.id}')">Borrar</button>`
+            : `<button class="btn-convert-expense" style="margin-right: 0.25rem;" onclick="convertToRealExpense('${item.id}')" title="Convertir en egreso del mes correspondiente">➡️ Convertir</button>
+               <button class="btn btn-secondary" style="padding: 0.35rem 0.65rem; font-size: 0.75rem; margin-right: 0.25rem;" onclick="openEditItemModal('upcoming', '${item.id}')">Editar</button>
+               <button class="btn btn-danger" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;" onclick="deleteUpcomingExpense('${item.id}')">Borrar</button>`;
+
+        tr.innerHTML = `
+            <td>${displayDate}</td>
+            <td style="font-weight:600;">${item.desc}</td>
+            <td><span class="badge" style="background:rgba(255,255,255,0.06); color:var(--text-secondary); border:1px solid rgba(255,255,255,0.1);">${item.category || 'Otros'}</span></td>
+            <td>${payerLabel} <span style="font-size:0.7rem; color:var(--text-muted);">(${splitLabel})</span></td>
+            <td style="text-align: right; font-weight:700; color:var(--color-primary);">${formatVal(item.amount)}</td>
+            <td style="text-align: center;">${statusBadge}</td>
+            <td style="text-align: center;">${actionButtons}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+window.convertToRealExpense = function(id) {
+    if (!Array.isArray(state.upcomingExpenses)) return;
+    const item = state.upcomingExpenses.find(x => x.id === id);
+    if (!item) return;
+
+    const destMonth = item.date ? item.date.substring(0, 7) : state.currentMonth;
+    ensureMonthExists(destMonth);
+
+    state.months[destMonth].varExpenses.push({
+        id: 'var-' + Date.now(),
+        desc: item.desc,
+        category: item.category || 'Otros',
+        payer: item.payer || 'member1',
+        split: item.split || 'shared',
+        amount: Number(item.amount) || 0,
+        date: item.date || `${destMonth}-01`
+    });
+
+    item.status = 'pagado';
+    saveState();
+    renderApp();
+    showToast(`¡"${item.desc}" se convirtió en egreso real de ${destMonth}!`, "success");
+};
+
+window.deleteUpcomingExpense = function(id) {
+    if (!Array.isArray(state.upcomingExpenses)) return;
+    state.upcomingExpenses = state.upcomingExpenses.filter(x => x.id !== id);
+    saveState();
+    renderApp();
+    showToast("Gasto presupuestado eliminado.", "info");
+};
+
+// --- MODULE 2: HISTORICAL PERIOD ANALYSIS LOGIC ---
+function populatePeriodMonthSelectors() {
+    const startSel = document.getElementById("period-start-month");
+    const endSel = document.getElementById("period-end-month");
+    if (!startSel || !endSel) return;
+
+    const currentStart = startSel.value;
+    const currentEnd = endSel.value;
+
+    startSel.innerHTML = "";
+    endSel.innerHTML = "";
+
+    const monthKeys = Array.from(new Set(Object.keys(state.months))).sort();
+    if (monthKeys.length === 0) {
+        monthKeys.push(state.currentMonth || "2026-09");
+    }
+
+    const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+
+    monthKeys.forEach((mKey) => {
+        const [year, month] = mKey.split("-");
+        const label = `${monthNames[parseInt(month) - 1]} ${year}`;
+
+        const opt1 = document.createElement("option");
+        opt1.value = mKey;
+        opt1.textContent = label;
+        startSel.appendChild(opt1);
+
+        const opt2 = document.createElement("option");
+        opt2.value = mKey;
+        opt2.textContent = label;
+        endSel.appendChild(opt2);
+    });
+
+    startSel.value = currentStart && monthKeys.includes(currentStart) ? currentStart : monthKeys[0];
+    endSel.value = currentEnd && monthKeys.includes(currentEnd) ? currentEnd : monthKeys[monthKeys.length - 1];
+}
+
+let periodMonthlyChartInstance = null;
+let periodCategoryChartInstance = null;
+let cachedPeriodRows = [];
+
+function renderPeriodAnalysis() {
+    populatePeriodMonthSelectors();
+
+    const startMonth = document.getElementById("period-start-month")?.value;
+    const endMonth = document.getElementById("period-end-month")?.value;
+    const typeFilter = document.getElementById("period-type-filter")?.value || "all_expenses";
+    const catFilter = document.getElementById("period-category-filter")?.value || "";
+
+    if (!startMonth || !endMonth) return;
+
+    const allMonths = Array.from(new Set(Object.keys(state.months))).sort();
+    let selectedMonths = allMonths.filter(m => m >= startMonth && m <= endMonth);
+    if (selectedMonths.length === 0) {
+        selectedMonths = [startMonth];
+    }
+
+    let totalSpent = 0;
+    let totalIncome = 0;
+    const categoryTotals = {};
+    const monthlyTotals = {};
+    const consolidatedRows = [];
+
+    selectedMonths.forEach(mKey => {
+        const mData = state.months[mKey] || { income: [], fixedExpenses: [], varExpenses: [] };
+        monthlyTotals[mKey] = { fixed: 0, var: 0, income: 0, total: 0 };
+
+        // Process Fixed Expenses
+        if (typeFilter === "all_expenses" || typeFilter === "fixedExpenses") {
+            (mData.fixedExpenses || []).forEach(exp => {
+                const amt = Number(exp.amount) || 0;
+                if (!catFilter || matchesCategory(exp.desc, catFilter) || matchesCategory("Hogar", catFilter)) {
+                    totalSpent += amt;
+                    monthlyTotals[mKey].fixed += amt;
+                    monthlyTotals[mKey].total += amt;
+                    const cat = "Egresos Fijos";
+                    categoryTotals[cat] = (categoryTotals[cat] || 0) + amt;
+                    consolidatedRows.push({
+                        month: mKey,
+                        date: exp.date || `${mKey}-01`,
+                        desc: exp.desc,
+                        category: "Egreso Fijo",
+                        payer: exp.payer,
+                        split: exp.split,
+                        amount: amt,
+                        type: "fixed"
+                    });
+                }
+            });
+        }
+
+        // Process Variable Expenses
+        if (typeFilter === "all_expenses" || typeFilter === "varExpenses") {
+            (mData.varExpenses || []).forEach(exp => {
+                const amt = Number(exp.amount) || 0;
+                const expCat = exp.category || "Otros";
+                if (!catFilter || matchesCategory(expCat, catFilter)) {
+                    totalSpent += amt;
+                    monthlyTotals[mKey].var += amt;
+                    monthlyTotals[mKey].total += amt;
+                    categoryTotals[expCat] = (categoryTotals[expCat] || 0) + amt;
+                    consolidatedRows.push({
+                        month: mKey,
+                        date: exp.date || `${mKey}-01`,
+                        desc: exp.desc,
+                        category: expCat,
+                        payer: exp.payer,
+                        split: exp.split,
+                        amount: amt,
+                        type: "var"
+                    });
+                }
+            });
+        }
+
+        // Process Income
+        if (typeFilter === "all_expenses" || typeFilter === "income") {
+            (mData.income || []).forEach(inc => {
+                const amt = Number(inc.amount) || 0;
+                if (!catFilter || matchesCategory(inc.desc, catFilter)) {
+                    totalIncome += amt;
+                    monthlyTotals[mKey].income += amt;
+                    if (typeFilter === "income") {
+                        monthlyTotals[mKey].total += amt;
+                    }
+                    consolidatedRows.push({
+                        month: mKey,
+                        date: inc.date || `${mKey}-01`,
+                        desc: inc.desc,
+                        category: "Ingreso",
+                        payer: inc.owner,
+                        split: "shared",
+                        amount: amt,
+                        type: "income"
+                    });
+                }
+            });
+        }
+    });
+
+    const monthsCount = selectedMonths.length;
+    const avgSpent = monthsCount > 0 ? (totalSpent / monthsCount) : 0;
+    const netBalance = totalIncome - totalSpent;
+
+    let topCatName = "-";
+    let topCatAmount = 0;
+    Object.entries(categoryTotals).forEach(([cat, val]) => {
+        if (val > topCatAmount) {
+            topCatAmount = val;
+            topCatName = cat;
+        }
+    });
+
+    const spentCard = document.getElementById("period-total-spent");
+    if (spentCard) spentCard.textContent = formatVal(totalSpent);
+
+    const spentDesc = document.getElementById("period-spent-months");
+    if (spentDesc) spentDesc.textContent = `${monthsCount} mes(es) seleccionados (${startMonth} a ${endMonth})`;
+
+    const avgCard = document.getElementById("period-avg-spent");
+    if (avgCard) avgCard.textContent = formatVal(avgSpent);
+
+    const countDesc = document.getElementById("period-months-count");
+    if (countDesc) countDesc.textContent = `Promedio en ${monthsCount} mes(es)`;
+
+    const incCard = document.getElementById("period-total-income");
+    if (incCard) incCard.textContent = formatVal(totalIncome);
+
+    const netDesc = document.getElementById("period-net-balance");
+    if (netDesc) netDesc.textContent = `Balance neto del período: ${formatVal(netBalance)}`;
+
+    const topCatCard = document.getElementById("period-top-category");
+    if (topCatCard) topCatCard.textContent = topCatName;
+
+    const topCatAmtDesc = document.getElementById("period-top-category-amount");
+    if (topCatAmtDesc) topCatAmtDesc.textContent = topCatAmount > 0 ? `Total: ${formatVal(topCatAmount)}` : 'Sin registros';
+
+    renderPeriodCharts(selectedMonths, monthlyTotals, categoryTotals);
+    renderPeriodTable(consolidatedRows);
+}
+
+function renderPeriodCharts(selectedMonths, monthlyTotals, categoryTotals) {
+    if (typeof Chart === 'undefined') return;
+
+    const monthNames = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+    const labels = selectedMonths.map(m => {
+        const [y, mNum] = m.split("-");
+        return `${monthNames[parseInt(mNum) - 1]} ${y}`;
+    });
+
+    const ctxMonthly = document.getElementById("periodMonthlyChart")?.getContext("2d");
+    if (ctxMonthly) {
+        if (periodMonthlyChartInstance) periodMonthlyChartInstance.destroy();
+
+        const fixedData = selectedMonths.map(m => monthlyTotals[m]?.fixed || 0);
+        const varData = selectedMonths.map(m => monthlyTotals[m]?.var || 0);
+        const incomeData = selectedMonths.map(m => monthlyTotals[m]?.income || 0);
+
+        periodMonthlyChartInstance = new Chart(ctxMonthly, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [
+                    { label: 'Egresos Fijos', data: fixedData, backgroundColor: '#f43f5e', borderRadius: 4 },
+                    { label: 'Egresos Variables', data: varData, backgroundColor: '#fbbf24', borderRadius: 4 },
+                    { label: 'Ingresos', data: incomeData, backgroundColor: '#10b981', borderRadius: 4 }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { labels: { color: '#94a3b8' } } },
+                scales: {
+                    x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                    y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+                }
+            }
+        });
+    }
+
+    const ctxCat = document.getElementById("periodCategoryChart")?.getContext("2d");
+    if (ctxCat) {
+        if (periodCategoryChartInstance) periodCategoryChartInstance.destroy();
+
+        const catLabels = Object.keys(categoryTotals);
+        const catData = Object.values(categoryTotals);
+
+        periodCategoryChartInstance = new Chart(ctxCat, {
+            type: 'doughnut',
+            data: {
+                labels: catLabels.length ? catLabels : ['Sin registros'],
+                datasets: [{
+                    data: catData.length ? catData : [1],
+                    backgroundColor: ['#8b5cf6', '#ec4899', '#3b82f6', '#10b981', '#f59e0b', '#06b6d4', '#64748b'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'right', labels: { color: '#94a3b8' } } }
+            }
+        });
+    }
+}
+
+function renderPeriodTable(rows) {
+    if (rows) cachedPeriodRows = rows;
+    const tbody = document.getElementById("table-period-body");
+    if (!tbody) return;
+    tbody.innerHTML = "";
+
+    const searchVal = document.getElementById("search-period")?.value || "";
+    const filteredRows = sortItemsByDate(cachedPeriodRows, 'desc').filter(item => {
+        if (!searchVal.trim()) return true;
+        const q = searchVal.toLowerCase();
+        return (item.desc || '').toLowerCase().includes(q) ||
+               (item.category || '').toLowerCase().includes(q) ||
+               (item.month || '').toLowerCase().includes(q);
+    });
+
+    const countBadge = document.getElementById("search-count-period");
+    if (countBadge) {
+        countBadge.textContent = `${filteredRows.length} registros`;
+    }
+
+    if (filteredRows.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No se encontraron registros en el período seleccionado.</td></tr>`;
+        return;
+    }
+
+    filteredRows.forEach(item => {
+        const tr = document.createElement("tr");
+        const displayDate = formatDateDisplay(item.date || `${item.month}-01`);
+
+        let payerLabel = item.payer === "member1" ? `<span class="badge badge-cris">${state.config.member1}</span>` : (item.payer === "member2" ? `<span class="badge badge-flor">${state.config.member2}</span>` : `<span class="badge badge-shared">Común</span>`);
+        let splitLabel = item.split === "shared" ? `<span class="badge badge-shared">Común</span>` : (item.split === "member1" ? `<span class="badge badge-cris">Solo ${state.config.member1}</span>` : `<span class="badge badge-flor">Solo ${state.config.member2}</span>`);
+
+        const isIncome = item.type === "income";
+        const valColor = isIncome ? "color:var(--color-success);" : "color:var(--color-danger);";
+
+        tr.innerHTML = `
+            <td>${displayDate}</td>
+            <td style="font-weight:600;">${item.desc}</td>
+            <td><span class="badge" style="background:rgba(255,255,255,0.06); color:var(--text-secondary); border:1px solid rgba(255,255,255,0.1);">${item.category}</span></td>
+            <td>${payerLabel}</td>
+            <td>${splitLabel}</td>
+            <td style="text-align: right; font-weight:700; ${valColor}">${isIncome ? '+' : '-'}${formatVal(item.amount)}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function exportPeriodToExcel() {
+    const startMonth = document.getElementById("period-start-month")?.value;
+    const endMonth = document.getElementById("period-end-month")?.value;
+    if (!cachedPeriodRows || cachedPeriodRows.length === 0) {
+        showToast("No hay registros en el período para exportar.", "info");
+        return;
+    }
+
+    if (typeof XLSX !== 'undefined') {
+        const wb = XLSX.utils.book_new();
+        const rows = cachedPeriodRows.map(item => ({
+            "Mes / Fecha": formatDateDisplay(item.date || `${item.month}-01`),
+            "Descripción": item.desc || "",
+            "Categoría / Tipo": item.category || "",
+            "Pagado Por": item.payer === "member1" ? (state.config.member1 || "Cris") : (item.payer === "member2" ? (state.config.member2 || "Flor") : "Común"),
+            "Destino": item.split === "shared" ? "Común" : (item.split === "member1" ? `Solo ${state.config.member1 || "Cris"}` : `Solo ${state.config.member2 || "Flor"}`),
+            "Monto": Number(item.amount) || 0
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(rows);
+        XLSX.utils.book_append_sheet(wb, ws, `Periodo_${startMonth}_a_${endMonth}`);
+        XLSX.writeFile(wb, `DuetBudget_Periodo_${startMonth}_a_${endMonth}.xlsx`);
+        showToast(`Análisis del período ${startMonth} a ${endMonth} exportado a Excel!`, "success");
     }
 }
 
