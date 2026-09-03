@@ -61,8 +61,15 @@ function loadStateFromLocalStorage() {
             if (!state.currentMonth || typeof state.currentMonth !== 'string') {
                 state.currentMonth = SEED_MONTH;
             }
-            if (!Array.isArray(state.upcomingExpenses)) {
-                state.upcomingExpenses = [];
+            if (!Array.isArray(state.savedBudgets) || state.savedBudgets.length === 0) {
+                state.savedBudgets = [
+                    { id: 'sb_october', name: '📅 Presupuesto Octubre', createdAt: new Date().toISOString(), items: [] },
+                    { id: 'sb_house', name: '🏠 Presupuesto Compra Casa', createdAt: new Date().toISOString(), items: [] },
+                    { id: 'sb_car', name: '🚗 Presupuesto Cambio Auto', createdAt: new Date().toISOString(), items: [] }
+                ];
+            }
+            if (!state.activeBudgetId) {
+                state.activeBudgetId = state.savedBudgets[0].id;
             }
         } catch (e) {
             console.error("Error loading saved state. Using default/seed data.", e);
@@ -83,7 +90,12 @@ function seedState() {
     };
     state.currentMonth = SEED_MONTH;
     state.months = {};
-    state.upcomingExpenses = [];
+    state.savedBudgets = [
+        { id: 'sb_october', name: '📅 Presupuesto Octubre', createdAt: new Date().toISOString(), items: [] },
+        { id: 'sb_house', name: '🏠 Presupuesto Compra Casa', createdAt: new Date().toISOString(), items: [] },
+        { id: 'sb_car', name: '🚗 Presupuesto Cambio Auto', createdAt: new Date().toISOString(), items: [] }
+    ];
+    state.activeBudgetId = 'sb_october';
     state.months[SEED_MONTH] = JSON.parse(JSON.stringify(SEED_DATA));
     saveState();
 }
@@ -1117,7 +1129,7 @@ function renderCharts(currentData, inc1, inc2, allExpenses, r1, r2) {
 // --- EVENT LISTENERS & FORM SUBMISSIONS ---
 function setupEventListeners() {
     // Tab switching
-    document.querySelectorAll(".nav-links .nav-item").forEach(item => {
+    document.querySelectorAll(".nav-item").forEach(item => {
         item.addEventListener("click", () => {
             const tabId = item.getAttribute("data-tab");
             switchTab(tabId);
@@ -1351,24 +1363,30 @@ function setupEventListeners() {
             const amount = Number(document.getElementById("upcoming-amount").value);
 
             if (date && desc && amount > 0) {
-                if (!Array.isArray(state.upcomingExpenses)) {
-                    state.upcomingExpenses = [];
+                if (!Array.isArray(state.savedBudgets) || state.savedBudgets.length === 0) {
+                    state.savedBudgets = [
+                        { id: 'sb_october', name: '📅 Presupuesto Octubre', createdAt: new Date().toISOString(), items: [] }
+                    ];
+                    state.activeBudgetId = 'sb_october';
                 }
-                state.upcomingExpenses.push({
-                    id: 'up-' + Date.now(),
+                const activeFolder = state.savedBudgets.find(b => b.id === state.activeBudgetId) || state.savedBudgets[0];
+                if (!Array.isArray(activeFolder.items)) {
+                    activeFolder.items = [];
+                }
+                activeFolder.items.push({
+                    id: 'up_' + Date.now(),
                     date,
                     desc,
                     category,
                     payer,
                     split,
-                    amount,
-                    status: 'pendiente'
+                    amount
                 });
 
                 formUpcoming.reset();
                 saveState();
                 renderUpcomingExpenses();
-                showToast("¡Gasto futuro presupuestado con éxito!", "success");
+                showToast(`¡Añadido a la carpeta "${activeFolder.name}"!`, "success");
             }
         });
     }
@@ -1480,6 +1498,24 @@ function setupEventListeners() {
         const amount = Number(document.getElementById("edit-item-amount").value);
         const dateVal = document.getElementById("edit-item-date").value;
         
+        if (type === 'upcoming') {
+            const activeFolder = state.savedBudgets.find(b => b.id === state.activeBudgetId) || state.savedBudgets[0];
+            const item = (activeFolder.items || []).find(x => x.id === id);
+            if (item) {
+                item.desc = desc;
+                item.amount = amount;
+                item.date = dateVal;
+                if (document.getElementById("edit-item-category")) item.category = document.getElementById("edit-item-category").value;
+                if (document.getElementById("edit-item-payer")) item.payer = document.getElementById("edit-item-payer").value;
+                if (document.getElementById("edit-item-split")) item.split = document.getElementById("edit-item-split").value;
+                saveState();
+                renderUpcomingExpenses();
+                closeEditItemModal();
+                showToast("Gasto presupuestado actualizado con éxito.", "success");
+            }
+            return;
+        }
+
         if (desc && amount > 0 && dateVal) {
             const currentMonthData = state.months[state.currentMonth];
             const list = currentMonthData ? currentMonthData[type] : [];
@@ -1773,7 +1809,14 @@ function renderCurrencyBreakdown(groupData, isInvestment = false) {
 
 // Open and populate generic edit item modal
 window.openEditItemModal = function(type, id) {
-    const list = state.months[state.currentMonth][type] || [];
+    let list = [];
+    if (type === 'upcoming') {
+        const activeFolder = state.savedBudgets.find(b => b.id === state.activeBudgetId) || state.savedBudgets[0];
+        list = activeFolder.items || [];
+    } else {
+        const currentMonthData = state.months[state.currentMonth];
+        list = currentMonthData ? currentMonthData[type] : [];
+    }
     const item = list.find(x => x.id === id);
     if (!item) return;
     
@@ -1790,6 +1833,7 @@ window.openEditItemModal = function(type, id) {
     const titleEl = document.getElementById("edit-item-title");
     if (type === 'income') titleEl.textContent = "Editar Ingreso";
     else if (type === 'fixedExpenses') titleEl.textContent = "Editar Egreso Fijo";
+    else if (type === 'upcoming') titleEl.textContent = "Editar Gasto Presupuestado";
     else titleEl.textContent = "Editar Egreso Variable";
     
     // Populate dynamic fields
@@ -1828,7 +1872,7 @@ window.openEditItemModal = function(type, id) {
         `;
         document.getElementById("edit-item-payer").value = item.payer || "member1";
         document.getElementById("edit-item-split").value = item.split || "shared";
-    } else if (type === 'varExpenses') {
+    } else if (type === 'varExpenses' || type === 'upcoming') {
         dynamicContainer.innerHTML = `
             <div class="config-form-group">
                 <label for="edit-item-category">Categoría</label>
@@ -1839,6 +1883,7 @@ window.openEditItemModal = function(type, id) {
                     <option value="Salud y Cuidado">Salud/Cuidado</option>
                     <option value="Suscripciones">Suscripciones</option>
                     <option value="Hogar">Hogar</option>
+                    <option value="Viajes">Viajes</option>
                     <option value="Otros">Otros</option>
                 </select>
             </div>
@@ -2051,57 +2096,173 @@ function exportToExcel() {
     }
 }
 
-// --- MODULE 1: UPCOMING EXPENSES PLANNER LOGIC ---
-function renderUpcomingExpenses() {
-    if (!Array.isArray(state.upcomingExpenses)) {
-        state.upcomingExpenses = [];
+// --- MODULE 1: BUDGET SIMULATOR & SCENARIO FOLDERS LOGIC ---
+
+function populateBudgetScenarioSelector() {
+    const select = document.getElementById("budget-scenario-select");
+    if (!select) return;
+
+    if (!Array.isArray(state.savedBudgets) || state.savedBudgets.length === 0) {
+        state.savedBudgets = [
+            { id: 'sb_october', name: '📅 Presupuesto Octubre', createdAt: new Date().toISOString(), items: [] },
+            { id: 'sb_house', name: '🏠 Presupuesto Compra Casa', createdAt: new Date().toISOString(), items: [] },
+            { id: 'sb_car', name: '🚗 Presupuesto Cambio Auto', createdAt: new Date().toISOString(), items: [] }
+        ];
     }
+    if (!state.activeBudgetId || !state.savedBudgets.some(b => b.id === state.activeBudgetId)) {
+        state.activeBudgetId = state.savedBudgets[0].id;
+    }
+
+    select.innerHTML = "";
+    state.savedBudgets.forEach(folder => {
+        const option = document.createElement("option");
+        option.value = folder.id;
+        const count = (folder.items || []).length;
+        option.textContent = `${folder.name} (${count} ítems)`;
+        if (folder.id === state.activeBudgetId) {
+            option.selected = true;
+        }
+        select.appendChild(option);
+    });
+}
+
+window.switchBudgetScenario = function(folderId) {
+    if (!folderId) return;
+    state.activeBudgetId = folderId;
+    saveState();
+    renderUpcomingExpenses();
+};
+
+window.openNewBudgetModal = function() {
+    const modal = document.getElementById("modal-new-budget");
+    if (modal) {
+        modal.style.display = "flex";
+        const input = document.getElementById("new-budget-name");
+        if (input) {
+            input.value = "";
+            input.focus();
+        }
+    }
+};
+
+window.closeNewBudgetModal = function() {
+    const modal = document.getElementById("modal-new-budget");
+    if (modal) {
+        modal.style.display = "none";
+    }
+};
+
+window.handleCreateNewBudgetFolder = function(e) {
+    e.preventDefault();
+    const input = document.getElementById("new-budget-name");
+    const name = input ? input.value.trim() : "";
+    if (!name) return;
+
+    if (!Array.isArray(state.savedBudgets)) {
+        state.savedBudgets = [];
+    }
+
+    const folderName = (name.startsWith('📁') || name.startsWith('🏠') || name.startsWith('🚗') || name.startsWith('✈️') || name.startsWith('📅')) 
+        ? name 
+        : `📁 ${name}`;
+
+    const newFolder = {
+        id: 'sb_' + Date.now(),
+        name: folderName,
+        createdAt: new Date().toISOString(),
+        items: []
+    };
+
+    state.savedBudgets.push(newFolder);
+    state.activeBudgetId = newFolder.id;
+
+    saveState();
+    closeNewBudgetModal();
+    renderUpcomingExpenses();
+    showToast(`¡Carpeta "${folderName}" creada con éxito!`, "success");
+};
+
+window.deleteActiveBudgetFolder = function() {
+    if (!Array.isArray(state.savedBudgets) || state.savedBudgets.length <= 1) {
+        showToast("Debes mantener al menos una carpeta de presupuesto.", "info");
+        return;
+    }
+
+    const activeFolder = state.savedBudgets.find(b => b.id === state.activeBudgetId);
+    const folderName = activeFolder ? activeFolder.name : "esta carpeta";
+
+    if (confirm(`¿Estás seguro de que deseas eliminar la carpeta "${folderName}" y todos sus ítems presupuestados?`)) {
+        state.savedBudgets = state.savedBudgets.filter(b => b.id !== state.activeBudgetId);
+        state.activeBudgetId = state.savedBudgets[0].id;
+        saveState();
+        renderUpcomingExpenses();
+        showToast(`Carpeta "${folderName}" eliminada.`, "info");
+    }
+};
+
+function renderUpcomingExpenses() {
+    if (!Array.isArray(state.savedBudgets) || state.savedBudgets.length === 0) {
+        state.savedBudgets = [
+            { id: 'sb_october', name: '📅 Presupuesto Octubre', createdAt: new Date().toISOString(), items: [] },
+            { id: 'sb_house', name: '🏠 Presupuesto Compra Casa', createdAt: new Date().toISOString(), items: [] },
+            { id: 'sb_car', name: '🚗 Presupuesto Cambio Auto', createdAt: new Date().toISOString(), items: [] }
+        ];
+    }
+    if (!state.activeBudgetId || !state.savedBudgets.some(b => b.id === state.activeBudgetId)) {
+        state.activeBudgetId = state.savedBudgets[0].id;
+    }
+
+    populateBudgetScenarioSelector();
+
+    const activeFolder = state.savedBudgets.find(b => b.id === state.activeBudgetId) || state.savedBudgets[0];
+    const items = activeFolder.items || [];
+
+    let totalAmt = 0;
+    let maxAmt = 0;
+    let maxDesc = '-';
+
+    items.forEach(item => {
+        const amt = Number(item.amount) || 0;
+        totalAmt += amt;
+        if (amt > maxAmt) {
+            maxAmt = amt;
+            maxDesc = item.desc;
+        }
+    });
+
+    const cardTotal = document.getElementById("card-upcoming-total");
+    if (cardTotal) cardTotal.textContent = formatVal(totalAmt);
+
+    const cardFolderName = document.getElementById("card-upcoming-folder-name");
+    if (cardFolderName) cardFolderName.textContent = `Carpeta: ${activeFolder.name}`;
+
+    const cardCount = document.getElementById("card-upcoming-count");
+    if (cardCount) cardCount.textContent = `${items.length} ítem(s) presupuestados`;
+
+    const cardMaxItem = document.getElementById("card-upcoming-max-item");
+    if (cardMaxItem) cardMaxItem.textContent = maxDesc;
+
+    const cardMaxAmt = document.getElementById("card-upcoming-max-amount");
+    if (cardMaxAmt) cardMaxAmt.textContent = maxAmt > 0 ? `Monto: ${formatVal(maxAmt)}` : 'Sin registros';
+
+    const tableTitle = document.getElementById("upcoming-table-title");
+    if (tableTitle) tableTitle.textContent = `Gastos Potenciales: ${activeFolder.name}`;
 
     const tbody = document.getElementById("table-upcoming-body");
     if (!tbody) return;
     tbody.innerHTML = "";
 
-    const now = new Date();
-    const date30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-    const nowStr = now.toISOString().substring(0, 10);
-    const date30Str = date30.toISOString().substring(0, 10);
-
-    let total30d = 0;
-    let totalAll = 0;
-    let pendingCount = 0;
-
-    state.upcomingExpenses.forEach(item => {
-        const amt = Number(item.amount) || 0;
-        const status = item.status || 'pendiente';
-        if (status === 'pendiente') {
-            totalAll += amt;
-            pendingCount++;
-            if (item.date >= nowStr && item.date <= date30Str) {
-                total30d += amt;
-            }
-        }
-    });
-
-    const card30d = document.getElementById("card-upcoming-30d");
-    if (card30d) card30d.textContent = formatVal(total30d);
-
-    const cardTotal = document.getElementById("card-upcoming-total");
-    if (cardTotal) cardTotal.textContent = formatVal(totalAll);
-
-    const cardCount = document.getElementById("card-upcoming-count");
-    if (cardCount) cardCount.textContent = `${pendingCount} gastos pendientes`;
-
-    const sortedList = sortItemsByDate(state.upcomingExpenses, sortOrders.upcoming || 'asc');
+    const sortedList = sortItemsByDate(items, sortOrders.upcoming || 'asc');
     const searchVal = document.getElementById("search-upcoming")?.value || "";
     const filteredList = filterListBySearch(sortedList, searchVal, "upcoming");
 
     const countBadge = document.getElementById("search-count-upcoming");
     if (countBadge) {
-        countBadge.textContent = searchVal.trim() ? `${filteredList.length} de ${state.upcomingExpenses.length}` : `${state.upcomingExpenses.length} presupuestados`;
+        countBadge.textContent = searchVal.trim() ? `${filteredList.length} de ${items.length}` : `${items.length} registrados`;
     }
 
     if (filteredList.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">${searchVal.trim() ? 'No se encontraron gastos futuros con ese filtro.' : 'No hay gastos futuros presupuestados. Añade uno arriba.'}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">${searchVal.trim() ? 'No se encontraron gastos con ese filtro.' : `La carpeta "${activeFolder.name}" aún no tiene gastos presupuestados. Añade uno usando el formulario.`}</td></tr>`;
         return;
     }
 
@@ -2109,67 +2270,34 @@ function renderUpcomingExpenses() {
         const tr = document.createElement("tr");
         const displayDate = formatDateDisplay(item.date || '');
         
-        let payerLabel = item.payer === "member1" ? `<span class="badge badge-cris">Pagará ${state.config.member1}</span>` : `<span class="badge badge-flor">Pagará ${state.config.member2}</span>`;
+        let payerLabel = item.payer === "member1" ? `<span class="badge badge-cris">${state.config.member1}</span>` : `<span class="badge badge-flor">${state.config.member2}</span>`;
         let splitLabel = "";
         if (item.split === "shared") splitLabel = `<span class="badge badge-shared">Común</span>`;
         else if (item.split === "member1") splitLabel = `<span class="badge badge-cris">Solo ${state.config.member1}</span>`;
         else splitLabel = `<span class="badge badge-flor">Solo ${state.config.member2}</span>`;
-
-        const isPaid = item.status === 'pagado';
-        const statusBadge = isPaid 
-            ? `<span class="badge-status-paid">✅ Convertido</span>` 
-            : `<span class="badge-status-pending">⌛ Pendiente</span>`;
-
-        const actionButtons = isPaid 
-            ? `<button class="btn btn-secondary" style="padding: 0.35rem 0.65rem; font-size: 0.75rem; margin-right: 0.25rem;" onclick="openEditItemModal('upcoming', '${item.id}')">Editar</button>
-               <button class="btn btn-danger" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;" onclick="deleteUpcomingExpense('${item.id}')">Borrar</button>`
-            : `<button class="btn-convert-expense" style="margin-right: 0.25rem;" onclick="convertToRealExpense('${item.id}')" title="Convertir en egreso del mes correspondiente">➡️ Convertir</button>
-               <button class="btn btn-secondary" style="padding: 0.35rem 0.65rem; font-size: 0.75rem; margin-right: 0.25rem;" onclick="openEditItemModal('upcoming', '${item.id}')">Editar</button>
-               <button class="btn btn-danger" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;" onclick="deleteUpcomingExpense('${item.id}')">Borrar</button>`;
 
         tr.innerHTML = `
             <td>${displayDate}</td>
             <td style="font-weight:600;">${item.desc}</td>
             <td><span class="badge" style="background:rgba(255,255,255,0.06); color:var(--text-secondary); border:1px solid rgba(255,255,255,0.1);">${item.category || 'Otros'}</span></td>
             <td>${payerLabel} <span style="font-size:0.7rem; color:var(--text-muted);">(${splitLabel})</span></td>
-            <td style="text-align: right; font-weight:700; color:var(--color-primary);">${formatVal(item.amount)}</td>
-            <td style="text-align: center;">${statusBadge}</td>
-            <td style="text-align: center;">${actionButtons}</td>
+            <td style="text-align: right; font-weight:700; color:#a78bfa;">${formatVal(item.amount)}</td>
+            <td style="text-align: center;">
+                <button class="btn btn-secondary" style="padding: 0.35rem 0.65rem; font-size: 0.75rem; margin-right: 0.25rem;" onclick="openEditItemModal('upcoming', '${item.id}')">Editar</button>
+                <button class="btn btn-danger" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;" onclick="deleteUpcomingExpense('${item.id}')">Borrar</button>
+            </td>
         `;
         tbody.appendChild(tr);
     });
 }
 
-window.convertToRealExpense = function(id) {
-    if (!Array.isArray(state.upcomingExpenses)) return;
-    const item = state.upcomingExpenses.find(x => x.id === id);
-    if (!item) return;
-
-    const destMonth = item.date ? item.date.substring(0, 7) : state.currentMonth;
-    ensureMonthExists(destMonth);
-
-    state.months[destMonth].varExpenses.push({
-        id: 'var-' + Date.now(),
-        desc: item.desc,
-        category: item.category || 'Otros',
-        payer: item.payer || 'member1',
-        split: item.split || 'shared',
-        amount: Number(item.amount) || 0,
-        date: item.date || `${destMonth}-01`
-    });
-
-    item.status = 'pagado';
-    saveState();
-    renderApp();
-    showToast(`¡"${item.desc}" se convirtió en egreso real de ${destMonth}!`, "success");
-};
-
 window.deleteUpcomingExpense = function(id) {
-    if (!Array.isArray(state.upcomingExpenses)) return;
-    state.upcomingExpenses = state.upcomingExpenses.filter(x => x.id !== id);
+    const activeFolder = state.savedBudgets.find(b => b.id === state.activeBudgetId);
+    if (!activeFolder || !Array.isArray(activeFolder.items)) return;
+    activeFolder.items = activeFolder.items.filter(x => x.id !== id);
     saveState();
-    renderApp();
-    showToast("Gasto presupuestado eliminado.", "info");
+    renderUpcomingExpenses();
+    showToast("Ítem eliminado del presupuesto.", "info");
 };
 
 // --- MODULE 2: HISTORICAL PERIOD ANALYSIS LOGIC ---

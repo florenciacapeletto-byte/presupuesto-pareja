@@ -495,32 +495,68 @@
                     </div>
                 </section>
 
-                <!-- TAB: UPCOMING EXPENSES -->
+                <!-- TAB: UPCOMING EXPENSES / BUDGET SIMULATOR -->
                 <section id="tab-upcoming" class="tab-content">
-                    <div class="summary-grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-bottom: 1.5rem;">
-                        <div class="glass-card summary-card income">
-                            <div class="card-header-small">
-                                <span>Gastos Próximos 30 Días</span>
-                                <span>🗓️</span>
+                    <!-- Folder / Project Selection Bar -->
+                    <div class="glass-card" style="margin-bottom: 1.5rem; padding: 1.25rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; flex: 1; min-width: 280px;">
+                                <span style="font-size: 1.5rem;">📂</span>
+                                <div style="flex: 1;">
+                                    <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.25rem;">Carpeta de Presupuesto Activa</label>
+                                    <select id="budget-scenario-select" class="search-input" style="width: 100%; font-weight: 700; font-size: 0.95rem; color: #a78bfa;" onchange="switchBudgetScenario(this.value)">
+                                        <!-- Populated dynamically -->
+                                    </select>
+                                </div>
                             </div>
-                            <div class="card-value" id="card-upcoming-30d">$0.00</div>
-                            <div class="card-desc">Compromisos a corto plazo</div>
-                        </div>
-                        <div class="glass-card summary-card expenses">
-                            <div class="card-header-small">
-                                <span>Total Presupuestado Futuro</span>
-                                <span>🎯</span>
+                            
+                            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                                <button type="button" class="btn btn-primary" onclick="openNewBudgetModal()" style="display: flex; align-items: center; gap: 0.4rem;">
+                                    <span>➕</span> Nueva Carpeta
+                                </button>
+                                <button type="button" class="btn btn-secondary" onclick="deleteActiveBudgetFolder()" style="border-color: rgba(244,63,94,0.3); color: #f43f5e;" title="Eliminar la carpeta de presupuesto activa">
+                                    🗑️ Eliminar Carpeta
+                                </button>
                             </div>
-                            <div class="card-value" id="card-upcoming-total">$0.00</div>
-                            <div class="card-desc" id="card-upcoming-count">0 gastos pendientes</div>
                         </div>
                     </div>
 
+                    <!-- Selected Budget Metrics Grid -->
+                    <div class="summary-grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-bottom: 1.5rem;">
+                        <div class="glass-card summary-card expenses">
+                            <div class="card-header-small">
+                                <span>Total Presupuesto Seleccionado</span>
+                                <span>🎯</span>
+                            </div>
+                            <div class="card-value" id="card-upcoming-total">$0.00</div>
+                            <div class="card-desc" id="card-upcoming-folder-name">Carpeta activa</div>
+                        </div>
+
+                        <div class="glass-card summary-card balance">
+                            <div class="card-header-small">
+                                <span>Ítems Presupuestados</span>
+                                <span>📋</span>
+                            </div>
+                            <div class="card-value" id="card-upcoming-count">0 ítems</div>
+                            <div class="card-desc">Gastos potenciales evaluados</div>
+                        </div>
+
+                        <div class="glass-card summary-card income">
+                            <div class="card-header-small">
+                                <span>Mayor Gasto del Proyecto</span>
+                                <span>🏆</span>
+                            </div>
+                            <div class="card-value" id="card-upcoming-max-item" style="font-size: 1.2rem;">-</div>
+                            <div class="card-desc" id="card-upcoming-max-amount">Sin registros</div>
+                        </div>
+                    </div>
+
+                    <!-- Budget Items Table Card -->
                     <div class="glass-card table-card">
                         <div class="table-header">
-                            <h3>Presupuestar Próximos Gastos (Viajes, Reparaciones, Compras Grandes)</h3>
+                            <h3 id="upcoming-table-title">Gastos Potenciales del Proyecto</h3>
                             <div class="table-search-box">
-                                <input type="text" id="search-upcoming" placeholder="🔍 Buscar gasto futuro..." class="search-input" oninput="renderApp()">
+                                <input type="text" id="search-upcoming" placeholder="🔍 Buscar ítem en este presupuesto..." class="search-input" oninput="renderUpcomingExpenses()">
                                 <span id="search-count-upcoming" class="search-count-badge"></span>
                             </div>
                         </div>
@@ -530,7 +566,7 @@
                                 <input type="date" id="upcoming-date" required>
                             </div>
                             <div class="form-group">
-                                <input type="text" id="upcoming-desc" placeholder="Ej. Patente auto, Vacaciones, Reparación heladera" required>
+                                <input type="text" id="upcoming-desc" placeholder="Ej. Anticipo, Escritura, Reparación, Muebles" required>
                             </div>
                             <div class="form-group small">
                                 <select id="upcoming-category" required>
@@ -539,7 +575,7 @@
                                     <option value="Transporte">Transporte / Auto</option>
                                     <option value="Salud y Cuidado">Salud/Cuidado</option>
                                     <option value="Suscripciones">Suscripciones</option>
-                                    <option value="Hogar">Hogar / Mantenimiento</option>
+                                    <option value="Hogar">Hogar / Construcción</option>
                                     <option value="Viajes">Viajes / Vacaciones</option>
                                     <option value="Otros">Otros</option>
                                 </select>
@@ -563,20 +599,19 @@
                                     <input type="number" id="upcoming-amount" placeholder="Monto Est." min="0" step="any" required>
                                 </div>
                             </div>
-                            <button type="submit" class="btn btn-primary">Presupuestar</button>
+                            <button type="submit" class="btn btn-primary">Añadir al Presupuesto</button>
                         </form>
 
                         <div class="table-responsive">
                             <table>
                                 <thead>
                                     <tr>
-                                        <th class="sortable-th" onclick="toggleSortOrder('upcoming')" title="Haz clic para cambiar el orden por fecha">Fecha Est. <span id="sort-icon-upcoming">▲</span></th>
+                                        <th class="sortable-th" onclick="toggleSortOrder('upcoming')" title="Haz clic para cambiar el orden por fecha">Fecha Est. / Etapa <span id="sort-icon-upcoming">▲</span></th>
                                         <th>Descripción</th>
                                         <th>Categoría</th>
                                         <th>Pagador / Destino</th>
                                         <th style="text-align: right;">Monto Est.</th>
-                                        <th style="text-align: center;">Estado</th>
-                                        <th style="width: 220px; text-align: center;">Acción</th>
+                                        <th style="width: 140px; text-align: center;">Acción</th>
                                     </tr>
                                 </thead>
                                 <tbody id="table-upcoming-body">
@@ -607,13 +642,35 @@
                             <div class="form-group medium">
                                 <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.25rem;">Desde (Mes)</label>
                                 <select id="period-start-month" class="search-input" style="width: 100%;" onchange="renderPeriodAnalysis()">
-                                    <!-- Populated dynamically -->
+                                    <option value="2026-01">Enero 2026</option>
+                                    <option value="2026-02">Febrero 2026</option>
+                                    <option value="2026-03">Marzo 2026</option>
+                                    <option value="2026-04">Abril 2026</option>
+                                    <option value="2026-05">Mayo 2026</option>
+                                    <option value="2026-06" selected>Junio 2026</option>
+                                    <option value="2026-07">Julio 2026</option>
+                                    <option value="2026-08">Agosto 2026</option>
+                                    <option value="2026-09">Septiembre 2026</option>
+                                    <option value="2026-10">Octubre 2026</option>
+                                    <option value="2026-11">Noviembre 2026</option>
+                                    <option value="2026-12">Diciembre 2026</option>
                                 </select>
                             </div>
                             <div class="form-group medium">
                                 <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.25rem;">Hasta (Mes)</label>
                                 <select id="period-end-month" class="search-input" style="width: 100%;" onchange="renderPeriodAnalysis()">
-                                    <!-- Populated dynamically -->
+                                    <option value="2026-01">Enero 2026</option>
+                                    <option value="2026-02">Febrero 2026</option>
+                                    <option value="2026-03">Marzo 2026</option>
+                                    <option value="2026-04">Abril 2026</option>
+                                    <option value="2026-05">Mayo 2026</option>
+                                    <option value="2026-06">Junio 2026</option>
+                                    <option value="2026-07">Julio 2026</option>
+                                    <option value="2026-08">Agosto 2026</option>
+                                    <option value="2026-09" selected>Septiembre 2026</option>
+                                    <option value="2026-10">Octubre 2026</option>
+                                    <option value="2026-11">Noviembre 2026</option>
+                                    <option value="2026-12">Diciembre 2026</option>
                                 </select>
                             </div>
                             <div class="form-group medium">
@@ -963,6 +1020,31 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.duet_budget;</code></pre>
                 <button type="button" class="btn btn-secondary" id="btn-conflict-download" style="background: var(--color-secondary); color: #0f172a; font-weight:700;">Descargar de la Nube</button>
                 <button type="button" class="btn btn-primary" id="btn-conflict-upload">Subir a la Nube</button>
             </div>
+        </div>
+    </div>
+
+    <!-- MODAL: NEW BUDGET FOLDER -->
+    <div id="modal-new-budget" class="modal-overlay" style="display:none;">
+        <div class="modal-content" style="max-width: 440px;">
+            <div class="modal-header">
+                <h3>📁 Crear Nueva Carpeta de Presupuesto</h3>
+                <button type="button" class="btn-close-modal" onclick="closeNewBudgetModal()" style="background:none; border:none; color:var(--text-secondary); font-size:1.5rem; cursor:pointer;">&times;</button>
+            </div>
+            <form id="form-new-budget-folder" onsubmit="handleCreateNewBudgetFolder(event)">
+                <div style="margin: 1.25rem 0;">
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.25rem; line-height: 1.4;">
+                        Crea una carpeta independiente para evaluar y simular un proyecto futuro (ej. <i>Presupuesto Compra Casa</i>, <i>Presupuesto Auto</i>, <i>Presupuesto Octubre</i>).
+                    </p>
+                    <div class="config-form-group">
+                        <label for="new-budget-name">Nombre de la Carpeta o Proyecto</label>
+                        <input type="text" id="new-budget-name" placeholder="Ej. Presupuesto Compra Casa" required style="width:100%; padding:0.6rem; border-radius:6px; border:1px solid var(--border-card); background:rgba(255,255,255,0.05); color:var(--text-primary);">
+                    </div>
+                </div>
+                <div class="modal-footer" style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1rem;">
+                    <button type="button" class="btn btn-secondary" onclick="closeNewBudgetModal()">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Crear Carpeta</button>
+                </div>
+            </form>
         </div>
     </div>
 
